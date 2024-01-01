@@ -22,7 +22,7 @@
   <div class="author">
     <img :src="account.img" alt="">
     <div>
-      <p>{{account.videos[0].name }}</p>
+      <p>{{ account.videos[0].name }}</p>
       <span>Q音号：{{ account.num }}</span>
     </div>
     <div v-if="logOut" @click="show = true" class="switch">
@@ -66,9 +66,10 @@ let router = useRouter() // 路由
 // 定义数据
 let show = ref(false)
 let checked = ref(true)
-const logOut=ref(true)
+const logOut = ref(true)
 const account = ref({
   img: 'src/assets/image/xishi2.png',
+  num: 100,
   videos: [
     {
       videoUrl: "src/assets/video/fj6.avi",

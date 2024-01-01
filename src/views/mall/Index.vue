@@ -60,10 +60,10 @@ onMounted(() => {
       "name": "payment_success",
     }]
 
-  advertList.valueO = data
+  advertList.value = data
 
 
-  var data = [
+  var data2 = [
     {
       "icon_url": "src/assets/images/order_no_data.png",
       "name": "推荐",
@@ -138,9 +138,9 @@ onMounted(() => {
     },
   ]
 
-  categoryList.value = data
+  categoryList.value = data2
 
-  var data = [
+  var data3 = [
     {
       "id": "1",
       "retail_price": "100",
@@ -167,10 +167,10 @@ onMounted(() => {
     },
   ]
 
-  seckillGoodsList.value = data
+  seckillGoodsList.value = data3
 
 
-  hotGoodsList.value = data
+  hotGoodsList.value = data3
 
   isShowLoading.value = false
 })

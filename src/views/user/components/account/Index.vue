@@ -28,14 +28,14 @@
     <div id="tcmall">
 
     </div>
-<!--    <div id="personalData">-->
-<!--      <van-action-bar>-->
-<!--        <van-action-bar-icon icon="chat-o" text="客服" @click="onClickIcon" />-->
-<!--        <van-action-bar-icon icon="cart-o" text="购物车" @click="onClickIcon" />-->
-<!--        <van-action-bar-icon icon="shop-o" text="店铺" @click="onClickIcon" />-->
-<!--        <van-action-bar-button type="danger" text="立即购买" @click="onClickButton" />-->
-<!--      </van-action-bar>-->
-<!--    </div>-->
+    <!--    <div id="personalData">-->
+    <!--      <van-action-bar>-->
+    <!--        <van-action-bar-icon icon="chat-o" text="客服" @click="onClickIcon" />-->
+    <!--        <van-action-bar-icon icon="cart-o" text="购物车" @click="onClickIcon" />-->
+    <!--        <van-action-bar-icon icon="shop-o" text="店铺" @click="onClickIcon" />-->
+    <!--        <van-action-bar-button type="danger" text="立即购买" @click="onClickButton" />-->
+    <!--      </van-action-bar>-->
+    <!--    </div>-->
 
 
     <!-- 当前登录用户显示的内容 -->
@@ -134,13 +134,20 @@
 </template>
 <script setup lang="ts">
 
+import {showToast} from 'vant'
 // 路由
 let router = useRouter()
 
 const userLikeCount = ref(100)
 const likeCountTotal = ref(200)
+const checked = ref(true)
+const folShow = ref(true)
+const active = ref(0)
+
 const account = ref({
   isUser: true,
+  num: 100,
+  fanTotal: 200,
   videos: [
     {
       videoUrl: "src/assets/video/fj6.avi",
@@ -152,6 +159,8 @@ const account = ref({
       time: "2023-05-10",
       likeTotal: 66,
       collTotal: 66,
+      imgFlag: true,
+      bgImg: '',
       chat: [
         {
           flag: true,
@@ -174,6 +183,8 @@ const account = ref({
       time: "2023-05-10",
       likeTotal: 66,
       collTotal: 66,
+      imgFlag: false,
+      bgImg: '',
       chat: [
         {
           flag: true,
@@ -196,6 +207,8 @@ const account = ref({
       time: "2023-05-10",
       likeTotal: 66,
       collTotal: 66,
+      imgFlag: true,
+      bgImg: '',
       chat: [
         {
           flag: true,
@@ -220,12 +233,13 @@ const account = ref({
 const isWork = ref(true);
 const playsData = ref({
   // 要播放的视频数据
+  fanTotal:200,
   playsData: {
     num: "666666",
     img: "src/assets/image/jyz.jpg",
     sex: false,
     collTotal: 66,
-    fanTotal: 66,
+    fanTotal: 200,
     collectionFlag: true,
     age: "22",
     address: "北京",
@@ -301,7 +315,7 @@ const playsData = ref({
         ],
       },
     ],
-  },
+  }
 })
 
 const collData = ref([])
@@ -321,9 +335,16 @@ const handleWork = (i) => {
   router.push({
     path: '/author',
     query: {
-      workData: account,
+      //workData: account,
     }
   })
+}
+
+const cancelFol = () => {
+}
+const handleFol = () => {
+}
+const tabsChange = () => {
 }
 </script>
 

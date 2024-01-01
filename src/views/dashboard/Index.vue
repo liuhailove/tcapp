@@ -26,6 +26,7 @@
 <script setup lang="ts">
 // export default {
 //   setup() {
+const goodsNum=ref(10)
 const tabbars = [
   {
     name: "home",
