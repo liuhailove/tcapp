@@ -16,3 +16,35 @@ If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has a
    1. Run `Extensions: Show Built-in Extensions` from VSCode's command palette
    2. Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
 2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+
+
+
+# 1. yarn create vite myapp
+
+# 2. cd myapp
+
+# 3.yarn
+
+# 4. yarn dev
+
+# 5. yarn add vue-router@next 或者yarn add vue-router@4
+
+# 6. yarn run build
+
+# 7.cordova create tc-three-app com.shop.tc.three.app
+
+# 8. yarn add axios
+
+# 8.cd tc-three-app
+
+# 9. cordova platform add ios
+
+# 10. cp -R ../dist/* www/
+
+# 11. cordova build ios
+
+# 12. vant w3c https://www.w3cschool.cn/pcauz/pcauz-x1qd3qga.html
+
+# 13. config.xml  增加
+    <preference name="scheme" value="app" />
+    <preference name="hostname" value="localhost" />
