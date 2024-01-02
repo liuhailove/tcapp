@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="searchContainer">
     <van-search
         v-model="searchValue"
         input-align="center"
@@ -23,3 +23,8 @@
 <script setup>
 const searchValue = ref('手机号码充值');
 </script>
+<style lang="less">
+.searchContainer{
+  margin-top: 10px;
+}
+</style>

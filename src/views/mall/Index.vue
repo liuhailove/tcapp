@@ -1,8 +1,9 @@
 <template>
   <div>
     <div v-if="!isShowLoading">
+      <top-bar/>
       <!-- 搜索框 -->
-      <goods-search />
+      <goods-search/>
 
       <!-- 快捷导航 -->
       <quick-nav/>
@@ -26,10 +27,8 @@
   </div>
 </template>
 <script setup lang="ts">
-// import {advertList} from '@/api/home'
-// import {categoryList} from '@/api/category'
-// import {goodsList} from '@/api/goods'
 
+import TopBar from '@/views/home/components/sidebar/TopBar.vue';
 import loading from '@/components/loading/LoadingGif.vue';
 import AdCarousel from '@/views/mall/components/AdCarousel/Index.vue';
 import CategoryNav from '@/views/mall/components/CategoryNav/Index.vue';

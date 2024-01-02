@@ -7,12 +7,6 @@
 
 <!--    </div>-->
 
-
-    <!--    &lt;!&ndash; 底部内容作者作品组件显示 &ndash;&gt;-->
-    <!--    <div  class="workBottom">-->
-    <!--      <input type="text" @keyup.enter="publish()" placeholder="善语结善缘，恶言伤人心" v-model.trim="chatText">-->
-    <!--      <van-icon name="guide-o" @click="publish()" color="#000" />-->
-    <!--    </div>-->
     <!-- 回到顶部按钮 -->
     <!--    <v-top/>-->
   </div>
@@ -75,12 +69,6 @@ const isSidebarVisible = ref(false);
 const handleTabClick = (tabId) => {
   console.info("sidebarVisible.value" + tabId);
 
-  // if (this.activeTab === tabId) {
-  //   this.sidebarVisible = !this.sidebarVisible;
-  // } else {
-  //   this.activeTab = tabId;
-  //   this.sidebarVisible = true;
-  // }
   if (tabId === 1) {
     this.sidebarVisible = true;
     isSidebarVisible.value = true;
@@ -105,42 +93,5 @@ const handleTabClick = (tabId) => {
   overflow: auto;
 
 }
-
-.top-bar {
-  width: 80%;
-}
-
-
-//.workBottom {
-//  position: fixed;
-//  bottom: 0;
-//  left: 0;
-//  width: 100%;
-//  padding: 15px 0;
-//  display: flex;
-//  align-items: center;
-//  justify-content: space-evenly;
-//
-//  input {
-//    // 透明背景
-//    background-color: rgba(0, 0, 0, 0, 1);
-//    border: 0;
-//    margin-right: 5px;
-//    color: #fff;
-//    font-size: 16px;
-//    width: 75%;
-//    padding: 8px 0;
-//  }
-//
-//  input::-webkit-input-placeholder {
-//    color: #bababa;
-//    font-size: 14px;
-//  }
-//
-//  :deep(.van-icon-guide-o) {
-//    vertical-align: middle;
-//  }
-//}
-
 
 </style>

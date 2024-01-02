@@ -25,6 +25,7 @@ import 'vant/lib/index.css';
 import router from '@/router';
 import "vant/es/toast/style"; //轻提示样式
 import "amfe-flexible";
+import '@vant/touch-emulator';
 
 const app = createApp(App);
 // setToastDefaultOptions({ duration: 800 }); //修改轻提示默认配置

@@ -1,21 +1,29 @@
 <template>
-  <div id="top-bar">
-    <van-space :size="40">
-      <div id="topBar" v-for="(item,index) in tobBar">
-        <van-icon size="1vw"
-                  color="#1989fa"
-                  @click="handleBarClick(index,item.name)"
-                  :name="item.icon"
-        >
+  <div id="top-bar" class="topBarContainer">
+    <!-- 导航项内容 -->
+    <!--    <van-grid :column-num="tobBar.length" :border="false" >-->
+    <!--      <van-grid-item v-for="(item,idx) in tobBar"-->
+    <!--                     :key="idx"-->
+    <!--                     :icon="item.icon"-->
+    <!--                     :text="item.title"-->
+    <!--                     @click="handleBarClick(idx,item.name)"-->
+    <!--      />-->
+    <!--    </van-grid>-->
+    <van-tabs v-model:active="active" sticky @click-tab="onClickTab">
+      <van-tab v-for="(item,idx) in tobBar" :name="item.to">
+        <template #title>
+          <van-icon :name="item.icon"/>
           {{ item.title }}
-        </van-icon>
-      </div>
-    </van-space>
+        </template>
+      </van-tab>
+    </van-tabs>
   </div>
 </template>
 <script setup lang="ts">
+
 const router = useRouter()
 
+const active = ref(0)
 const tobBar = ref([]);
 onMounted(() => {
   // 在下次 DOM 更新循环结束后执行回调
@@ -25,11 +33,16 @@ onMounted(() => {
   });
 })
 
+const onClickTab = (item) => {
+  console.info("onClickTab:" + item.name)
+  router.push(item.name);
+};
+
 const initData = () => {
   tobBar.value = [
     {
       name: "app",
-      title: "应用",
+      title: "",
       icon: "apps-o",
       to: "/app",
       id: 1,
@@ -64,14 +77,14 @@ const initData = () => {
     },
     {
       name: "search",
-      title: "搜索",
+      title: "",
       icon: "search",
       to: "/search",
       id: 6,
     },
     {
       name: "setting",
-      title: "配置",
+      title: "",
       icon: "setting-o",
       to: "/setting",
       id: 7,
@@ -83,3 +96,10 @@ const handleBarClick = (index, name) => {
   router.push(name);
 }
 </script>
+
+<style lang="less" scoped>
+.topBarContainer {
+  height: 30px;
+  width: 100%;
+}
+</style>

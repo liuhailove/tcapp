@@ -48,3 +48,7 @@ If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has a
 # 13. config.xml  增加
     <preference name="scheme" value="app" />
     <preference name="hostname" value="localhost" />
+
+
+# 其他 
+## 1.拖拽问题解决 yarn add @vant/touch-emulator

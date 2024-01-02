@@ -6,7 +6,6 @@
       <router-view v-if="$route.meta.keepAlive"></router-view>
     </keep-alive>
     <router-view v-if="!$route.meta.keepAlive"></router-view>
-
     <div id="tabbar">
       <van-tabbar v-model="active">
         <van-tabbar-item v-for="(item,index) in tabbars"
@@ -24,8 +23,6 @@
 </template>
 
 <script setup lang="ts">
-// export default {
-//   setup() {
 const goodsNum=ref(10)
 const tabbars = [
   {
@@ -77,15 +74,8 @@ const handleTabClick = (index, tabName) => {
   currentIndex.value = index;
   router.push(tabName);
 }
-//   return {
-//     currentIndex,
-//     tabbars,
-//     active,
-//   }
-// }
-// }
 </script>
-<style lanuage="less" scoped>
+<style lang="less" scoped>
 
 #dashboard {
   width: 100%;
@@ -118,4 +108,5 @@ const handleTabClick = (index, tabName) => {
 #dashboard {
   padding-bottom: 50px;
 }
+
 </style>
