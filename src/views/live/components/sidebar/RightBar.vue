@@ -31,8 +31,8 @@
 <script>
 
 import {watchEffect} from 'vue';
-import ShareSheet from '@/views/home/components/share/Share.vue';
-import Chat from '@/views/home/components/chat/Chat.vue';
+import ShareSheet from '@/views/live/components/share/Share.vue';
+import Chat from '@/views/live/components/chat/Chat.vue';
 
 
 export default {
@@ -68,12 +68,24 @@ export default {
       chatShow.value = !chatShow.value
     }
 
+    const handleAddCol = () => {
+    }
+    const handleLike = (i) => {
+    }
+    const handlecollection = (i) => {
+    }
+    const jump = () => {
+    }
     return {
       leftSidebarVisible,
       shareShow,
       chatShow,
+      handleAddCol,
       handleShare,
-      handleChat
+      handleChat,
+      handleLike,
+      handlecollection,
+      jump
     };
   }
 }
@@ -123,37 +135,4 @@ export default {
   }
 
 }
-
-//
-//// 视频介绍
-//.video-text {
-//  position: absolute;
-//  left: 10px;
-//  bottom: 12%;
-//  color: #fff;
-//  font-size: 16px;
-//
-//  .title {
-//    display: flex;
-//    align-items: baseline; //第一行文字基线对齐
-//
-//    h4 {
-//      margin: 0 10px 10px 0;
-//    }
-//
-//    i {
-//      color: gray;
-//    }
-//  }
-//
-//
-//  p {
-//    margin: 0;
-//    width: 250px;
-//    overflow: hidden;
-//    font-size: 14px;
-//    font-family: cursive; //草书字体
-//    word-wrap: break-word; //强制换行
-//  }
-//}
 </style>

@@ -1,6 +1,6 @@
 <template>
   <!--精选品类-->
-  <van-grid :border="true" :column-num="3"  :gutter="2" :center="false" :row-height="150">
+  <van-grid :border="false" :column-num="3" :gutter="1" :center="false" :row-height="150">
     <van-grid-item icon="home-o" text="直播精选" badge="推">
       <div class="spike">
         <div class="spike-header">
@@ -14,41 +14,18 @@
         <div class="spike-content">
           <!-- 精选商品 -->
           <div class="goods-wrapper">
-            <van-grid :column-num="2" :gutter="2">
-              <van-grid-item icon="home-o" text="直播精选" badge="推">
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                </van-card>
-
-              </van-grid-item>
-              <van-grid-item>
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                  <template #footer>
-                    <van-button size="mini">按钮</van-button>
-                    <van-button size="mini">按钮</van-button>
-                  </template>
-                </van-card>
-              </van-grid-item>
-            </van-grid>
+            <van-card
+                price="2.00"
+                desc="描述信息"
+                title="商品标题"
+                thumb="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+                class="van-card-full"
+            >
+              <template #tags>
+                <van-tag plain type="primary">标签</van-tag>
+                <van-tag plain type="primary">标签</van-tag>
+              </template>
+            </van-card>
           </div>
         </div>
       </div>
@@ -73,45 +50,23 @@
         <div class="spike-content">
           <!-- 秒杀商品 -->
           <div class="goods-wrapper">
-            <van-grid :column-num="2" :gutter="2">
-              <van-grid-item icon="home-o" text="直播精选" badge="推">
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                </van-card>
-              </van-grid-item>
-              <van-grid-item>
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                  <template #footer>
-                    <van-button size="mini">按钮</van-button>
-                    <van-button size="mini">按钮</van-button>
-                  </template>
-                </van-card>
-              </van-grid-item>
-            </van-grid>
+            <van-card
+                price="2.00"
+                desc="描述信息"
+                title="商品标题"
+                thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
+                class="van-card-full"
+            >
+              <template #tags>
+                <van-tag plain type="primary">标签</van-tag>
+                <van-tag plain type="primary">标签</van-tag>
+              </template>
+            </van-card>
           </div>
         </div>
       </div>
     </van-grid-item>
-    <van-grid-item  text="品牌馆">
+    <van-grid-item text="品牌馆">
       <div class="spike">
         <div class="spike-header">
           <span class="spike-header-title">品牌馆</span>
@@ -119,40 +74,18 @@
         <div class="spike-content">
           <!-- 秒杀商品 -->
           <div class="goods-wrapper">
-            <van-grid :column-num="2" :gutter="2">
-              <van-grid-item icon="home-o" text="直播精选" badge="推">
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                </van-card>
-              </van-grid-item>
-              <van-grid-item>
-                <van-card
-                    price="2.00"
-                    desc="描述信息"
-                    title="商品标题"
-                    thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                    class="van-card-full"
-                >
-                  <template #tags>
-                    <van-tag plain type="primary">标签</van-tag>
-                    <van-tag plain type="primary">标签</van-tag>
-                  </template>
-                  <template #footer>
-                    <van-button size="mini">按钮</van-button>
-                    <van-button size="mini">按钮</van-button>
-                  </template>
-                </van-card>
-              </van-grid-item>
-            </van-grid>
+            <van-card
+                price="2.00"
+                desc="描述信息"
+                title="商品标题"
+                thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
+                class="van-card-full"
+            >
+              <template #tags>
+                <van-tag plain type="primary">标签</van-tag>
+                <van-tag plain type="primary">标签</van-tag>
+              </template>
+            </van-card>
           </div>
         </div>
       </div>
@@ -263,8 +196,8 @@ export default {
       float: right;
 
       &-text {
-        height: 24px;
-        line-height: 24px;
+        height: 20px;
+        line-height: 20px;
         font-size: 14px;
       }
 
@@ -277,8 +210,8 @@ export default {
     }
   }
 
-  &-content{
-    .van-card-full{
+  &-content {
+    .van-card-full {
       background-color: #ffffff;
     }
   }

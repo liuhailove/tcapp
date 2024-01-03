@@ -1,23 +1,43 @@
 <template>
   <div id="home-container">
-    <TopBar/>
-    <RightBar/>
-    <!-- 播放视频 -->
-<!--    <div class="content">-->
-
-<!--    </div>-->
+    <div id="top-bar">
+      <van-tabs v-model:active="active" @change="handleTabClick" sticky>
+        <van-tab v-for="(item,idx) in tobBar" :name="item.to">
+          <template #title>
+            <van-icon :name="item.icon"/>
+            {{ item.title }}
+          </template>
+        </van-tab>
+      </van-tabs>
+      <router-view></router-view>
+    </div>
+    <!-- 内容页 -->
+    <div class="content">
+      <component :is="activeTabComponent"></component>
+    </div>
 
     <!-- 回到顶部按钮 -->
     <!--    <v-top/>-->
   </div>
 </template>
 <script setup>
-import RightBar from '@/views/home/components/sidebar/RightBar.vue';
-import TopBar from '@/views/home/components/sidebar/TopBar.vue';
+// 电商组件
+import MallContent from '@/views/mall/Index.vue';
+// 直播组件
+import LiveContent from '@/views/live/Index.vue';
+// 默认活跃的tab
+const active = ref(0)
+// 活跃组件
+const activeTabComponent = ref(LiveContent)
+const handleTabClick = (toUrl) => {
+  console.info("handleTabClick:" + toUrl)
+  if (toUrl === '/live') {
+    activeTabComponent.value = LiveContent
+  } else {
+    activeTabComponent.value = MallContent
+  }
+}
 
-const tobBar = ref([]);
-const activeIndex = ref(0);
-const sidebarVisible = ref(2);
 onMounted(() => {
   // 在下次 DOM 更新循环结束后执行回调
   nextTick(() => {
@@ -26,56 +46,60 @@ onMounted(() => {
   });
 })
 
+// 初始化顶部菜单
+const tobBar = ref([]);
 const initData = () => {
   tobBar.value = [
+    {
+      name: "app",
+      title: "",
+      icon: "apps-o",
+      to: "/app",
+      id: 1,
+    },
     {
       name: "hot",
       title: "热点",
       icon: "",
       to: "/hot",
-      id: 1,
+      id: 2,
     },
     {
       name: "live",
       title: "直播",
       icon: "",
       to: "/live",
-      id: 2,
+      id: 3,
     },
     {
       name: "mall",
       title: "电商",
       icon: "",
       to: "/mall",
-      id: 3,
+      id: 4,
     },
     {
       name: "recommend",
       title: "推荐",
       icon: "",
       to: "/recommand",
-      id: 4,
+      id: 5,
     },
     {
       name: "search",
-      title: "搜索",
+      title: "",
       icon: "search",
       to: "/search",
-      id: 5,
+      id: 6,
+    },
+    {
+      name: "setting",
+      title: "",
+      icon: "setting-o",
+      to: "/setting",
+      id: 7,
     },
   ]
-}
-const isSidebarVisible = ref(false);
-const handleTabClick = (tabId) => {
-  console.info("sidebarVisible.value" + tabId);
-
-  if (tabId === 1) {
-    this.sidebarVisible = true;
-    isSidebarVisible.value = true;
-  } else {
-    this.sidebarVisible = false;
-    isSidebarVisible.value = false;
-  }
 }
 
 </script>

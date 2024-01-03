@@ -14,7 +14,7 @@
 <script setup>
 const activeIndex = ref(0)
 const show = ref(true)
-var navItems = ref([
+const navItems = ref([
   {
     gridItems: [
       {

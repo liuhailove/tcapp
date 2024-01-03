@@ -25,6 +25,6 @@ const searchValue = ref('手机号码充值');
 </script>
 <style lang="less">
 .searchContainer{
-  margin-top: 10px;
+  margin-top: 2px;
 }
 </style>
