@@ -3,12 +3,14 @@ import vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite';
 import { VantResolver } from '@vant/auto-import-resolver';
 import AutoImport from 'unplugin-auto-import/vite';
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
+
     Components({
-      resolvers: [VantResolver()],
+      resolvers: [VantResolver(),],
     }),
     AutoImport({
       imports: [
@@ -21,8 +23,10 @@ export default defineConfig({
   ],
   resolve:{
     alias: {
-      '@': '/src'
-    }
+      '@': '/src',
+      'vant': 'vant',
+    },
+
   },
 
   base: './',
@@ -34,5 +38,12 @@ export default defineConfig({
         rewrite: path => path.replace(/^\/api/, '')
       },
     }
+  },
+  css: {
+    preprocessorOptions: {
+      less: {
+        javascriptEnabled: true,
+      },
+    },
   },
 })

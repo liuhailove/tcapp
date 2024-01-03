@@ -1,6 +1,6 @@
 <!-- 人气推荐 -->
 <template>
-  <van-grid :column-num="2" >
+  <van-grid :column-num="2">
     <van-grid-item v-for="(item,index) in hotGoodsList">
       <van-card
           class="hot-goods-item"
@@ -19,6 +19,9 @@
 </template>
 
 <script setup lang="ts">
+import {useRouter, useRoute} from 'vue-router'
+// 路由
+let router = useRouter()
 const hotGoodsList = ref([
   {
     "id": "1",
@@ -102,15 +105,18 @@ const hotGoodsList = ref([
   },
 ])
 
-const gotoGoodsDetail=(id)=>{
-
+// 商品详情页
+const gotoGoodsDetail = (goodsId) => {
+  router.push({
+    name: 'goods',
+    params: {
+      goodsId: goodsId
+    }
+  })
 }
 </script>
 <style lang="less" scoped>
 .hot {
-  //padding: 0 10px;
-  //margin-top: 10px;
-
 
   &-header {
     vertical-align: middle;

@@ -55,6 +55,11 @@ const routes: Array<RouteRecordRaw> = [
                     keepAlive: true
                 }
             },
+            {
+                path:'/goods/:goodsId',
+                name:'goods',
+                component:()=>import("@/views/mall/goods/detail/Index.vue")
+            }
         ]
     }
 

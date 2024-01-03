@@ -1,14 +1,16 @@
 <template>
   <div id="home-container">
     <div id="top-bar">
-      <van-tabs v-model:active="active" @change="handleTabClick" sticky>
-        <van-tab v-for="(item,idx) in tobBar" :name="item.to">
-          <template #title>
-            <van-icon :name="item.icon"/>
-            {{ item.title }}
-          </template>
-        </van-tab>
-      </van-tabs>
+      <van-sticky>
+        <van-tabs v-model:active="active" @change="handleTabClick" sticky>
+          <van-tab v-for="(item,idx) in tobBar" :name="item.to">
+            <template #title>
+              <van-icon :name="item.icon"/>
+              {{ item.title }}
+            </template>
+          </van-tab>
+        </van-tabs>
+      </van-sticky>
       <router-view></router-view>
     </div>
     <!-- 内容页 -->
