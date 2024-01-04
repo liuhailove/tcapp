@@ -10,7 +10,7 @@
       <!-- 分类导航 -->
       <category-nav :categoryList="categoryList"/>
       <!-- 回到顶部按钮 -->
-<!--      <v-top/>-->
+      <van-back-top />
     </div>
     <!-- 数据加载提示gif -->
     <loading :show="isShowLoading"/>

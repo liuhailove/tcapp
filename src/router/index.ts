@@ -15,52 +15,71 @@ const routes: Array<RouteRecordRaw> = [
         name: "/dashboard",
         component: () => import("@/views/dashboard/Index.vue"),
         children:
-        [
-            {
-                path: '/dashboard',
-                redirect: 'dashboard/home',
-                meta: {
-                    keepAlive: true
-                }
-            },
-            {
-                path: '/home',
-                name: 'home',
-                component: () => import("@/views/home/Index.vue"),
-                meta: {
-                    keepAlive: true
-                }
-            },
-            {
-                path:'/user',
-                name:'user',
-                component: () => import("@/views/user/Index.vue"),
-                meta: {
-                    keepAlive: true
-                }
-            },
-            {
-                path:'/author',
-                name:'author',
-                component: () => import("@/views/user/components/author/Index.vue"),
-                meta: {
-                    keepAlive: true
-                }
-            },
-            {
-                path:'/mall',
-                name:'mall',
-                component: () => import("@/views/mall/Index.vue"),
-                meta: {
-                    keepAlive: true
-                }
-            },
-            {
-                path:'/goods/:goodsId',
-                name:'goods',
-                component:()=>import("@/views/mall/goods/detail/Index.vue")
-            }
-        ]
+            [
+                {
+                    path: '/dashboard',
+                    redirect: 'dashboard/home',
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/home',
+                    name: 'home',
+                    component: () => import("@/views/home/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/user',
+                    name: 'user',
+                    component: () => import("@/views/user/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    },
+                    children:
+                        [
+                            {
+                                path: '/myorders',
+                                name: 'myorders',
+                                component: () => import("@/views/user/myorders/Index.vue"),
+                                meta: {
+                                    keepAlive: true
+                                }
+                            },
+                        ]
+                },
+                {
+                    path: '/author',
+                    name: 'author',
+                    component: () => import("@/views/user/components/author/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/mall',
+                    name: 'mall',
+                    component: () => import("@/views/mall/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/goods/:goodsId',
+                    name: 'goods',
+                    component: () => import("@/views/mall/goods/detail/Index.vue")
+                },
+                {
+                    path: '/user/myorders',
+                    name: 'myorders',
+                    component: () => import("@/views/user/myorders/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+            ]
     }
 
 

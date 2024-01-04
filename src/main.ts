@@ -17,6 +17,7 @@ import {
     TabbarItem, Tabs,
     Toast, Dialog, Notify, ImagePreview,
     ActionBar, ActionBarIcon, ActionBarButton,
+    BackTop,
     setToastDefaultOptions
 } from 'vant';
 import {Icon} from "vant";
@@ -102,6 +103,8 @@ app.use(Lazyload);
 app.use(ActionBar);
 app.use(ActionBarIcon);
 app.use(ActionBarButton);
+// 回到顶部
+app.use(BackTop);
 
 app.mount('#app');
 

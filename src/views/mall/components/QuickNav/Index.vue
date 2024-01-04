@@ -3,8 +3,13 @@
     <van-swipe @change="handleSwipeChange">
       <van-swipe-item v-for="(item, index) in navItems" :key="index">
         <!-- 导航项内容 -->
-        <van-grid :column-num="item.gridItems.length" :border="false" :square="true" @click="handleGridClick">
-          <van-grid-item v-for="(gridItem,idx) in item.gridItems" :key="idx" :icon="gridItem.icon" :text="gridItem.text"/>
+        <van-grid :column-num="item.gridItems.length" :border="false" :square="true">
+          <van-grid-item v-for="(gridItem,idx) in item.gridItems"
+                         :key="idx"
+                         :icon="gridItem.icon"
+                         :text="gridItem.text"
+                         @click="handleGridClick(gridItem.to)"
+          />
         </van-grid>
       </van-swipe-item>
     </van-swipe>
@@ -14,19 +19,21 @@
 <script setup>
 const activeIndex = ref(0)
 const show = ref(true)
+const router = useRouter()
+
 const navItems = ref([
   {
     gridItems: [
       {
         icon: "orders-o",
         text: "我的订单",
-        to: "/",
+        to: "/user/myorders",
         badge: ""
       },
       {
         icon: "gold-coin-o",
         text: "手机充值",
-        to: "/",
+        to: "/mobile/recharge",
         badge: ""
       },
       {
@@ -84,10 +91,13 @@ const navItems = ref([
     ]
   }
 ])
-const handleGridClick = (index) => {
+
+const handleGridClick = (toUrl) => {
   // 处理导航项点击事件
-  console.log('点击了导航项', index);
+  console.log('点击了导航项', toUrl);
+  router.push(toUrl);
 }
+
 const handleSwipeChange = (index) => {
   console.info("handleSwipeChange:" + index)
   // 根据滑动方向切换内容
