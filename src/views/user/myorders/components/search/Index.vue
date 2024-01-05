@@ -101,7 +101,7 @@ const navItems = ref([
       {
         icon: "coupon-o",
         text: "卡券红包",
-        to: "/",
+        to: "/user/coupon",
         badge: ""
       },
       {

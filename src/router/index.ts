@@ -92,6 +92,14 @@ const routes: Array<RouteRecordRaw> = [
                             },
                         ]
                 },
+                {
+                    path: '/user/coupon',
+                    name: 'mycoupon',
+                    component: () => import("@/views/user/coupon/Index.vue"),
+                    meta: {
+                        keepAlive: true
+                    },
+                },
             ]
     }
 
