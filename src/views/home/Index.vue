@@ -27,34 +27,86 @@
           closeable
           close-icon="close"
           position="left"
-          :style="{ width: '30%', height: '100%' }">
-        <div class="popup-header">
-          <span class="popup-title">常用功能</span>
-        </div>
-        <div class="popup-content">
-          <div class="spike">
-            <div class="spike-header">
-              <span class="spike-header-title">最近使用</span>
+          :style="{ width: '90%', height: '100%' }">
+        <div class="popup-dialog">
+          <div class="popup-header">
+            <span class="popup-title">常用功能</span>
+          </div>
+          <div class="popup-content">
+            <div class="spike">
+              <div class="spike-header">
+                <span class="spike-header-title">最近使用</span>
+              </div>
+              <div class="spike-content">
+                <!-- 最近使用 -->
+                <!-- 弹出框导航项内容 -->
+                <div v-for="(item, index) in navItems" :key="index">
+                  <van-grid :column-num="item.gridItems.length" :border="false" :square="false">
+                    <van-grid-item v-for="(gridItem,idx) in item.gridItems"
+                                   :key="idx"
+                                   :icon="gridItem.icon"
+                                   :text="gridItem.text"
+                                   :badge="gridItem.badge"
+                                   @click="handleGridClick(gridItem.to)"
+                    />
+                  </van-grid>
+                  <van-divider/>
+                </div>
+              </div>
             </div>
-            <div class="spike-content">
-              <!-- 最近使用 -->
-              <!-- 弹出框导航项内容 -->
-              <div v-for="(item, index) in navItems" :key="index">
-                <van-grid :column-num="item.gridItems.length" :border="false" :square="false">
-                  <van-grid-item v-for="(gridItem,idx) in item.gridItems"
-                                 :key="idx"
-                                 :icon="gridItem.icon"
-                                 :text="gridItem.text"
-                                 :badge="gridItem.badge"
-                                 @click="handleGridClick(gridItem.to)"
-                                 :style="{height: '10%'}"
-                  />
-                </van-grid>
-                <van-divider/>
+
+
+            <!--常用功能-->
+            <div class="spike">
+              <div class="spike-header">
+                <span class="spike-header-title">常用功能</span>
+              </div>
+              <div class="spike-content">
+                <!-- 最近使用 -->
+                <!-- 弹出框导航项内容 -->
+                <div v-for="(item, index) in navItems" :key="index">
+                  <van-grid :column-num="item.gridItems.length" :border="false" :square="false">
+                    <van-grid-item v-for="(gridItem,idx) in item.gridItems"
+                                   :key="idx"
+                                   :icon="gridItem.icon"
+                                   :text="gridItem.text"
+                                   :badge="gridItem.badge"
+                                   @click="handleGridClick(gridItem.to)"
+                                   :style="{fontSize: '10px'}"
+                    />
+                  </van-grid>
+                  <van-divider/>
+                </div>
+              </div>
+            </div>
+
+
+            <!--生活动态-->
+            <div class="spike">
+              <div class="spike-header">
+                <span class="spike-header-title">生活动态</span>
+              </div>
+              <div class="spike-content">
+                <!-- 生活动态 -->
+                <!-- 弹出框导航项内容 -->
+                <div v-for="(item, index) in navItems" :key="index">
+                  <van-grid :column-num="item.gridItems.length" :border="false" :square="false"
+                            class="spike-grid-content">
+                    <van-grid-item v-for="(gridItem,idx) in item.gridItems"
+                                   :key="idx"
+                                   :icon="gridItem.icon"
+                                   :text="gridItem.text"
+                                   :badge="gridItem.badge"
+                                   @click="handleGridClick(gridItem.to)"
+                    />
+                  </van-grid>
+                  <van-divider/>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
       </van-popup>
     </div>
 
@@ -231,15 +283,15 @@ const navItems = ref([
   overflow: auto;
 }
 
+
 .spike {
   position: relative;
   background: #ffffff;
-  height: 140px;
   margin-top: 20px;
 
   &-header {
     padding: 0 10px;
-
+    display: inline-block;
     &-title {
       display: inline-block;
       height: 26px;
@@ -286,25 +338,50 @@ const navItems = ref([
 
       &-text {
         height: 20px;
-        line-height: 20px;
-        font-size: 14px;
+        line-height: 15px;
+        font-size: 10px;
       }
 
       .van-icon {
         margin-left: 2px;
-        height: 24px;
-        line-height: 24px;
+        height: 10px;
+        line-height: 10px;
         float: right;
       }
     }
   }
 
   &-content {
+    height: auto;
     .van-card-full {
       background-color: #f1f1f1;
     }
   }
 }
 
+.popup {
+  &-dialog {
+    width: 100%;
+    background-color: #f8f9fa;
+    box-sizing: border-box;
+  }
+
+  &-content {
+
+  }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background-color: #f5f5f5;
+  }
+
+  &-title {
+    font-size: 16px;
+    font-weight: bold;
+  }
+}
 
 </style>
