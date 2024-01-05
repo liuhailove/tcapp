@@ -44,20 +44,21 @@
           <van-divider/>
         </div>
       </div>
-
+      <router-view/>
     </van-popup>
   </div>
 </template>
 <script setup>
 const searchValue = ref('');
 const showBottom = ref(false)
+const router = useRouter()
 
 const handleMoreFeatures = () => {
   showBottom.value = true
 }
 
 const handleGridClick = (toUrl) => {
-
+  router.push({path: toUrl})
 }
 
 const navItems = ref([
@@ -72,7 +73,7 @@ const navItems = ref([
       {
         icon: "location-o",
         text: "我的地址",
-        to: "/mobile/recharge",
+        to: "/user/address",
         badge: ""
       },
       {

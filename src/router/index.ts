@@ -12,7 +12,7 @@ const routes: Array<RouteRecordRaw> = [
     },
     {
         path: "/dashboard",
-        name: "/dashboard",
+        name: "dashboard",
         component: () => import("@/views/dashboard/Index.vue"),
         children:
             [
@@ -38,17 +38,6 @@ const routes: Array<RouteRecordRaw> = [
                     meta: {
                         keepAlive: true
                     },
-                    children:
-                        [
-                            {
-                                path: '/myorders',
-                                name: 'myorders',
-                                component: () => import("@/views/user/myorders/Index.vue"),
-                                meta: {
-                                    keepAlive: true
-                                }
-                            },
-                        ]
                 },
                 {
                     path: '/author',
@@ -77,7 +66,31 @@ const routes: Array<RouteRecordRaw> = [
                     component: () => import("@/views/user/myorders/Index.vue"),
                     meta: {
                         keepAlive: true
-                    }
+                    },
+                },
+                {
+                    path: '/user/address',
+                    name: 'address',
+                    component: () => import("@/views/user/address/Index.vue"),
+                    children:
+                        [
+                            {
+                                path: 'add',
+                                name: 'addAddress',
+                                component: () => import("@/views/user/address/Add.vue"),
+                                meta: {
+                                    keepAlive: true
+                                }
+                            },
+                            {
+                                path: 'edit',
+                                name: 'editAddress',
+                                component: () => import("@/views/user/address/Edit.vue"),
+                                meta: {
+                                    keepAlive: true
+                                }
+                            },
+                        ]
                 },
             ]
     }

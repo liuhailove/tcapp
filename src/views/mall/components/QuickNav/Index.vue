@@ -95,7 +95,7 @@ const navItems = ref([
 const handleGridClick = (toUrl) => {
   // 处理导航项点击事件
   console.log('点击了导航项', toUrl);
-  router.push(toUrl);
+  router.push({ path: toUrl });
 }
 
 const handleSwipeChange = (index) => {
