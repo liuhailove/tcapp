@@ -44,7 +44,6 @@
           <van-divider/>
         </div>
       </div>
-      <router-view/>
     </van-popup>
   </div>
 </template>

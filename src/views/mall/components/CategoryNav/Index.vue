@@ -20,7 +20,6 @@ import RecommendContent from '@/views/mall/recommend/Index.vue';
 // 水果组件
 import FruitContent from '@/views/mall/fruit/Index.vue';
 
-
 const active = ref(0);
 const activeTabComponent = ref(RecommendContent)
 const props = defineProps({

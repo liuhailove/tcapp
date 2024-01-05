@@ -2,7 +2,7 @@
   <div class="loading_container">
     <div class="load_img"  :style="{backgroundPositionY: -(positionY%7)*2.5 + 'rem'}"/>
   </div>
-  <svg-icon iconClass="loading"  style="width:1.5rem;height:1.5rem" />
+<!--  <svg-icon iconClass="loading"  style="width:1.5rem;height:1.5rem" />-->
 </template>
 
 <script>

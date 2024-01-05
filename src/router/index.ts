@@ -101,9 +101,13 @@ const routes: Array<RouteRecordRaw> = [
                     },
                 },
             ]
+    },
+    {
+        // 登录
+        path: '/login',
+        name: 'login',
+        component: () => import("@/views/login/Index.vue")
     }
-
-
 ];
 
 const router = createRouter({
