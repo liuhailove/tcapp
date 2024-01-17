@@ -189,6 +189,8 @@ export enum VideoQuality {
    * @generated from enum value: OFF = 3;
    */
   OFF = 3,
+
+  UNRECOGNIZED = -1,
 }
 // Retrieve enum metadata with: proto3.getEnumType(VideoQuality)
 proto3.util.setEnumType(VideoQuality, "tc.VideoQuality", [
@@ -196,6 +198,7 @@ proto3.util.setEnumType(VideoQuality, "tc.VideoQuality", [
   { no: 1, name: "MEDIUM" },
   { no: 2, name: "HIGH" },
   { no: 3, name: "OFF" },
+  { no: -1, name: "UNRECOGNIZED" },
 ]);
 
 /**
