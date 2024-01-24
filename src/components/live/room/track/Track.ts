@@ -6,7 +6,6 @@ import {StreamState as ProtoStreamState} from "@/components/live/protocol/tc_rtc
 import {TrackEvent} from "@/components/live/room/events";
 import log from "@/components/live/logger";
 import {isFireFox, isSafari, isWeb} from "@/components/live/room/utils";
-
 const BACKGROUND_REACTION_DELAY = 5000;
 
 // 分离时保留旧的音频元素，因为在 iOS 上我们会重新使用它们
@@ -444,7 +443,7 @@ export type TrackEventCallbacks = {
     // 音频播放开始
     audioPlaybackStarted: () => void;
     // 音频播放失败
-    audioPlaybackFailed: () => void;
+    audioPlaybackFailed: (error:Error) => void;
     // 检测到音频静音
     audioSilenceDetected: () => void;
     // 可见性已更改

@@ -1,6 +1,8 @@
 import {RoomConnectOptions, RoomOptions} from "@/components/live/options";
 import {EventEmitter} from "events";
 import TypedEventEmitter from "typed-emitter";
+import Room, {ConnectionState} from "@/components/live/room/Room";
+import RTCEngine from "@/components/live/room/RTCEngine";
 
 type LogMessage = {
     level: 'info' | 'waring' | 'error';
@@ -29,13 +31,129 @@ export interface CheckerOptions {
 }
 
 export abstract class Checker extends (EventEmitter as new () => TypedEventEmitter<CheckerCallbacks>) {
-  protected url:string;
+    protected url: string;
 
-  protected token:string;
+    protected token: string;
 
-  // TODO
-  room:Room;
+    room: Room;
 
+    connectOptions?: RoomConnectOptions;
+
+    status: CheckStatus = CheckStatus.IDLE;
+
+    logs: Array<LogMessage> = [];
+
+    errorsAsWarnings: boolean = false;
+
+    name: string;
+
+    constructor(url: string, token: string, options: CheckerOptions = {}) {
+        super();
+        this.url = url;
+        this.token = token;
+        this.name = this.constructor.name;
+        this.room = new Room(options.roomOptions);
+        this.connectOptions = options.connectOptions;
+        if (options.errorsAsWarnings) {
+            this.errorsAsWarnings = options.errorsAsWarnings;
+        }
+    }
+
+    abstract get description(): string;
+
+    protected abstract perform(): Promise<void>;
+
+    async run(onComplete?: () => void) {
+        if (this.status !== CheckStatus.IDLE) {
+            throw Error('check is running already');
+        }
+        this.setStatus(CheckStatus.RUNNING);
+        this.appendMessage(`${this.name} started.`);
+
+        try {
+            await this.perform();
+        } catch (err) {
+            if (err instanceof Error) {
+                if (this.errorsAsWarnings) {
+                    this.appendWarning(err.message);
+                } else {
+                    this.appendError(err.message);
+                }
+            }
+        }
+
+        await this.disconnect();
+
+        // sleep for a bit to ensure disconnect
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // @ts-ignore
+        if (this.status !== CheckStatus.SKIPPED) {
+            this.setStatus(this.isSuccess() ? CheckStatus.SUCCESS : CheckStatus.FAILED);
+        }
+
+        if (onComplete) {
+            onComplete();
+        }
+        return this.getInfo();
+    }
+
+    protected isSuccess(): boolean {
+        return !this.logs.some((l) => l.level === 'error');
+    }
+
+    protected async connect(): Promise<Room> {
+        if (this.room.state === ConnectionState.Connected) {
+            return this.room;
+        }
+        await this.room.connect(this.url, this.token);
+        return this.room;
+    }
+
+    protected async disconnect() {
+        if (this.room && this.room.state !== ConnectionState.Disconnected) {
+            await this.room.disconnect();
+            // wait for it to go through
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+    }
+
+    protected skip() {
+        this.setStatus(CheckStatus.SKIPPED);
+    }
+
+    protected appendMessage(message: string) {
+        this.logs.push({level: 'info', message});
+        this.emit('update', this.getInfo());
+    }
+
+    protected appendWarning(message: string) {
+        this.logs.push({level: 'waring', message});
+        this.emit('update', this.getInfo());
+    }
+
+    protected appendError(message: string) {
+        this.logs.push({level: 'error', message});
+        this.emit('update', this.getInfo());
+    }
+
+    protected setStatus(status: CheckStatus) {
+        this.status = status;
+        this.emit('update', this.getInfo());
+    }
+
+    protected get engine(): RTCEngine | undefined {
+        return this.room?.engine;
+    }
+
+    getInfo(): CheckInfo {
+        return {
+            logs: this.logs,
+            name: this.name,
+            status: this.status,
+            description: this.description,
+        };
+    }
 }
 
 export type InstantiableCheck<T extends Checker> = {

@@ -126,7 +126,7 @@ export class SignalClient {
 
     onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
 
-    obSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
+    onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
     onSubscriptionError?: (update: SubscriptionResponse) => void;
 

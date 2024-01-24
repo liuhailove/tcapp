@@ -1,5 +1,4 @@
 import {attachToElement, detachTrack, Track} from "@/components/live/room/track/Track";
-import {VideoCodec} from "@/components/live/protocol/tc_models_pb";
 import {compareVersions, isMobile, Mutex, sleep} from "@/components/live/room/utils";
 import {TrackProcessor} from "@/components/live/room/track/processor/types";
 import log from "@/components/live/logger";
@@ -7,6 +6,7 @@ import {TrackEvent} from "@/components/live/room/events";
 import {getBrowser} from "@/components/live/utils/browserParser";
 import {DeviceUnsupportedError, TrackInvalidError} from "@/components/live/room/errors";
 import DeviceManager from "@/components/live/room/DeviceManager";
+import {VideoCodec} from "@/components/live/room/track/options";
 
 const defaultDimensionsTimeout = 1000;
 

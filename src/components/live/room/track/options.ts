@@ -1,4 +1,3 @@
-import {VideoCodec} from "@/components/live/protocol/tc_models_pb";
 import {Track} from "@/components/live/room/track/Track";
 
 
@@ -156,6 +155,9 @@ export interface ScreenShareCaptureOptions {
     /** 指定浏览器是否应允许用户选择当前选项卡进行捕获 */
     selfBrowserSurface?: 'include' | 'exclude';
 
+    /** specifies whether the browser should display a control to allow the user to dynamically switch the shared tab during screen-sharing. */
+    surfaceSwitching?: 'include' | 'exclude';
+
     /** 指定浏览器是否应显示控件以允许用户在屏幕共享期间动态切换共享选项卡。 */
     systemAudio?: 'include' | 'exclude';
 
@@ -277,7 +279,7 @@ export interface AudioPreset {
 const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
-export type VideoCodecs = (typeof codecs)[number];
+export type VideoCodec = (typeof codecs)[number];
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 

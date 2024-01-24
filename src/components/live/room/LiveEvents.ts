@@ -7,7 +7,7 @@
  * room.on(RoomEvent.TrackPublished, (跟踪、发布、参与者) => {})
  * ````
  */
-export enum RoomEvents {
+export enum RoomEvent {
     /**
      * 当与服务器的连接建立时
      */
@@ -416,7 +416,7 @@ export enum ParticipantEvent {
 export enum EngineEvent {
     TransportsCreated = 'transportsCreated',
     Connected = 'connected',
-    Disconnected = 'connected',
+    Disconnected = 'disconnected',
     Resuming = 'resuming',
     Resumed = 'resumed',
     Restarting = 'restarting',
@@ -467,6 +467,11 @@ export enum TrackEvent {
      * 仅在 LocalTracks 上触发
      */
     UpstreamPaused = 'upstreamPaused',
+    /**
+     * @internal
+     * Only fires on LocalTracks
+     */
+    UpstreamResumed = 'upstreamResumed',
     /**
      * @内部的
      * 在 RemoteTrackPublication 上触发

@@ -1,6 +1,7 @@
 import {RegionInfo, RegionSettings} from "@/components/live/protocol/tc_rtc_pb";
 import log from "@/components/live/logger";
 import {ConnectionError, ConnectionErrorReason} from "@/components/live/room/errors";
+import {isCloud} from "@/components/live/utils";
 
 export class RegionUrlProvider {
     private serverUrl: URL;

@@ -47,7 +47,7 @@ import {EngineEvent} from "@/components/live/room/LiveEvents";
 import {TrackPublishOptions} from "@/components/live/room/track/options";
 import {Track} from "@/components/live/room/track/Track";
 import LocalTrack from "@/components/live/room/track/LocalTrack";
-import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
+import LocalVideoTrack, {SimulcastTrackInfo} from "@/components/live/room/track/LocalVideoTrack";
 import CriticalTimers from "@/components/live/timers";
 
 

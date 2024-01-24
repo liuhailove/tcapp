@@ -1,0 +1,325 @@
+import Participant, {ParticipantEventCallbacks} from "@/components/live/room/participant/Participant";
+import RemoteTrackPublication from "@/components/live/room/track/RemoteTrackPublication";
+import {SignalClient} from "@/components/live/api/SignalClient";
+import {AudioOutputOptions} from "@/components/live/room/track/options";
+import {ParticipantInfo, SubscriptionError} from "@/components/live/protocol/tc_models_pb";
+import {ParticipantEvent, TrackEvent} from "@/components/live/room/LiveEvents";
+import {UpdateSubscription, UpdateTrackSettings} from "@/components/live/protocol/tc_rtc_pb";
+import log from "@/components/live/logger";
+import {TrackPublication} from "@/components/live/room/track/TrackPublication";
+import RemoteTrack from "@/components/live/room/track/RemoteTrack";
+import {Track} from "@/components/live/room/track/Track";
+import RemoteAudioTrack from "@/components/live/room/track/RemoteAudioTrack";
+import {AdaptiveStreamSettings} from "@/components/live/room/track/types";
+import RemoteVideoTrack from "@/components/live/room/track/RemoteVideoTrack";
+
+export default class RemoteParticipant extends Participant {
+    audioTracks: Map<string, RemoteTrackPublication>;
+
+    videoTracks: Map<string, RemoteTrackPublication>;
+
+    tracks: Map<string, RemoteTrackPublication>;
+
+    signalClient: SignalClient;
+
+    private volume?: number;
+
+    private audioContext?: AudioContext;
+
+    private audioOutput?: AudioOutputOptions;
+
+    static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
+        return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
+    }
+
+    constructor(
+        signalClient: SignalClient,
+        sid: string,
+        identity?: string,
+        name?: string,
+        metadata?: string,
+    ) {
+        super(sid, identity || '', name, metadata);
+        this.signalClient = signalClient;
+        this.tracks = new Map<string, RemoteTrackPublication>();
+        this.audioTracks = new Map<string, RemoteTrackPublication>();
+        this.videoTracks = new Map<string, RemoteTrackPublication>();
+    }
+
+    protected addTrackPublication(publication: RemoteTrackPublication) {
+        super.addTrackPublication(publication);
+
+        // register action events
+        publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
+            log.debug('send update settings', settings);
+            this.signalClient.sendUpdateTrackSettings(settings);
+        });
+        publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
+            sub.participantTracks.forEach((pt) => {
+                pt.participantSid = this.sid;
+            });
+            this.signalClient.sendUpdateSubscription(sub);
+        });
+        publication.on(
+            TrackEvent.SubscriptionPermissionChanged,
+            (status: TrackPublication.PermissionStatus) => {
+                this.emit(ParticipantEvent.TrackSubscriptionPermissionChanged, publication, status);
+            },
+        );
+        publication.on(
+            TrackEvent.SubscriptionStatusChanged,
+            (status: TrackPublication.SubscriptionStatus) => {
+                this.emit(ParticipantEvent.TrackSubscriptionStatusChanged, publication, status);
+            },
+        );
+        publication.on(TrackEvent.Subscribed, (track: RemoteTrack) => {
+            this.emit(ParticipantEvent.TrackSubscribed, track, publication);
+        });
+        publication.on(TrackEvent.Unsubscribed, (previousTrack: RemoteTrack) => {
+            this.emit(ParticipantEvent.TrackUnsubscribed, previousTrack, publication);
+        });
+        publication.on(TrackEvent.SubscriptionFailed, (error: SubscriptionError) => {
+            this.emit(ParticipantEvent.TrackSubscriptionFailed, publication.trackSid, error);
+        });
+    }
+
+    getTrack(source: Track.Source): RemoteTrackPublication | undefined {
+        const track = super.getTrack(source);
+        if (track) {
+            return track as RemoteTrackPublication;
+        }
+    }
+
+    /**
+     * sets the volume on the participant's microphone track
+     * if no track exists the volume will be applied when the microphone track is added
+     */
+    setVolume(volume: number) {
+        this.volume = volume;
+        const audioPublication = this.getTrack(Track.Source.Microphone);
+        if (audioPublication && audioPublication.track) {
+            (audioPublication.track as RemoteAudioTrack).setVolume(volume);
+        }
+        return this.volume;
+    }
+
+    /**
+     * gets the volume on the participant's microphone track
+     */
+    getVolume() {
+        const audioPublication = this.getTrack(Track.Source.Microphone);
+        if (audioPublication && audioPublication.track) {
+            return (audioPublication.track as RemoteAudioTrack).getVolume();
+        }
+        return this.volume;
+    }
+
+    addSubscribedMediaTrack(
+        mediaTrack: MediaStreamTrack,
+        sid: Track.SID,
+        mediaStream: MediaStream,
+        receiver?: RTCRtpReceiver,
+        adaptiveStreamSettings?: AdaptiveStreamSettings,
+        triesLeft?: number,
+    ) {
+        // find the track publication
+        // it's possible for the media track to arrive before participant info
+        let publication = this.getTrackPublication(sid);
+
+        // it's also possible that the browser didn't honor our original track id
+        // FireFox would use its own local uuid instead of server track id
+        if (!publication) {
+            if (!sid.startsWith('TR')) {
+                // find the first track that matches type
+                this.tracks.forEach((p) => {
+                    if (!publication && mediaTrack.kind === p.kind.toString()) {
+                        publication = p;
+                    }
+                });
+            }
+        }
+
+        // when we couldn't locate the track, it's possible that the metadata hasn't
+        // yet arrived. Wait a bit longer for it to arrive, or fire an error
+        if (!publication) {
+            if (triesLeft === 0) {
+                log.error('could not find published track', {participant: this.sid, trackSid: sid});
+                this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+                return;
+            }
+
+            if (triesLeft === undefined) {
+                triesLeft = 20;
+            }
+            setTimeout(() => {
+                this.addSubscribedMediaTrack(
+                    mediaTrack,
+                    sid,
+                    mediaStream,
+                    receiver,
+                    adaptiveStreamSettings,
+                    triesLeft! - 1,
+                );
+            }, 150);
+            return;
+        }
+
+        if (mediaTrack.readyState === 'ended') {
+            log.error('unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()',
+                {participant: this.sid, trackSid: sid},
+            );
+            this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+            return;
+        }
+
+        const isVideo = mediaTrack.kind === 'video';
+        let track: RemoteTrack;
+        if (isVideo) {
+            track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStreamSettings);
+        } else {
+            track = new RemoteAudioTrack(mediaTrack, sid, receiver, this.audioContext, this.audioOutput);
+        }
+
+        // set track info
+        track.source = publication.source;
+        // keep publication's muted status
+        track.isMuted = publication.isMuted;
+        track.setMediaStream(mediaStream);
+        track.start();
+
+        publication.setTrack(track);
+        // set participant volume on new microphone tracks
+        if (
+            this.volume !== undefined &&
+            track instanceof RemoteAudioTrack &&
+            track.source === Track.Source.Microphone
+        ) {
+            track.setVolume(this.volume);
+        }
+
+        return publication;
+    }
+
+    get hasMetadata(): boolean {
+        return !!this.participantInfo;
+    }
+
+    getTrackPublication(sid: Track.SID): RemoteTrackPublication | undefined {
+        return this.tracks.get(sid);
+    }
+
+    updateInfo(info: ParticipantInfo): boolean {
+        if (!super.updateInfo(info)) {
+            return false;
+        }
+
+        // we are getting a list of all available tracks, reconcile in here
+        // and send out events for changes
+
+        // reconcile track publications, publish events only if metadata is already there
+        // i.e. changes since the local participant has joined
+        const validTracks = new Map<string, RemoteTrackPublication>();
+        const newTracks = new Map<string, RemoteTrackPublication>();
+
+        info.tracks.forEach((ti) => {
+            let publication = this.getTrackPublication(ti.sid);
+            if (!publication) {
+                // new publication
+                const kind = Track.kindFromProto(ti.type);
+                if (!kind) {
+                    return;
+                }
+                publication = new RemoteTrackPublication(
+                    kind,
+                    ti,
+                    this.signalClient.connectOptions?.autoSubscribe,
+                );
+                publication.updateInfo(ti);
+                newTracks.set(ti.sid, publication);
+                const existingTrackOfSource = Array.from(this.tracks.values()).find(
+                    (publishedTrack) => publishedTrack.source === publication?.source,
+                );
+                if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
+                    log.debug(
+                        `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
+                        {
+                            oldTrack: existingTrackOfSource,
+                            newTrack: publication,
+                            participant: this,
+                            participantInfo: info,
+                        },
+                    );
+                }
+                this.addTrackPublication(publication);
+            } else {
+                publication.updateInfo(ti);
+            }
+            validTracks.set(ti.sid, publication);
+        });
+
+        // detect removed tracks
+        this.tracks.forEach((publication) => {
+            this.emit(ParticipantEvent.TrackPublished, publication);
+        });
+        return true;
+    }
+
+    unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
+        const publication = <RemoteTrackPublication>this.tracks.get(sid);
+        if (!publication) {
+            return;
+        }
+
+        // also send unsubscribe, if track is actively subscribed
+        const {track} = publication;
+        if (track) {
+            track.stop();
+            publication.setTrack(undefined);
+        }
+
+        // remove track from maps only after unsubscribed has been fired
+        this.tracks.delete(sid);
+
+        // remove from the right type map
+        switch (publication.kind) {
+            case Track.Kind.Audio:
+                this.audioTracks.delete(sid);
+                break;
+            case Track.Kind.Video:
+                this.videoTracks.delete(sid);
+                break;
+            default:
+                break;
+        }
+
+        if (sendUnpublish) {
+            this.emit(ParticipantEvent.TrackUnpublished, publication);
+        }
+    }
+
+    setAudioContext(ctx: AudioContext | undefined) {
+        this.audioContext = ctx;
+        this.audioTracks.forEach(
+            (track) => track.track instanceof RemoteAudioTrack && track.track.setAudioContext(ctx),
+        );
+    }
+
+    async setAudioOutput(output: AudioOutputOptions) {
+        this.audioOutput = output;
+        const promises: Promise<void>[] = [];
+        this.audioTracks.forEach((pub) => {
+            if (pub.track instanceof RemoteAudioTrack) {
+                promises.push(pub.track.setSinkId(output.deviceId ?? 'default'));
+            }
+        });
+        await Promise.all(promises);
+    }
+
+    emit<E extends keyof ParticipantEventCallbacks>(
+        event: E,
+        ...args: Parameters<ParticipantEventCallbacks[E]>
+    ): boolean {
+        log.trace('participant event', { participant: this.sid, event, args });
+        return super.emit(event, ...args);
+    }
+}

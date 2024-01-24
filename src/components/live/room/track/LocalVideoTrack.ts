@@ -1,13 +1,14 @@
 import LocalTrack from "@/components/live/room/track/LocalTrack";
-import {VideoCodec, VideoQuality} from "@/components/live/protocol/tc_models_pb";
+import { VideoLayer, VideoQuality} from "@/components/live/protocol/tc_models_pb";
 import {SignalClient} from "@/components/live/api/SignalClient";
 import {computeBitrate, monitorFrequency, VideoSenderStats} from "@/components/live/room/stats";
 import {SubscribedCodec, SubscribedQuality} from "@/components/live/protocol/tc_rtc_pb";
 import {isFireFox, isMobile, isWeb, Mutex} from "@/components/live/room/utils";
 import {Track} from "@/components/live/room/track/Track";
 import log from "@/components/live/logger";
-import {VideoCaptureOptions} from "@/components/live/room/track/options";
+import {VideoCaptureOptions, VideoCodec} from "@/components/live/room/track/options";
 import {constraintsForOptions} from "@/components/live/room/track/utils";
+import {ScalabilityMode} from "@/components/live/room/participant/publishUtils";
 
 export class SimulcastTrackInfo {
     codec: VideoCodec;
@@ -89,7 +90,7 @@ export default class LocalVideoTrack extends LocalTrack {
 
     stop() {
         this._mediaStreamTrack.getConstraints();
-        this.simulcastCodec.forEach((trackInfo) => {
+        this.simulcastCodecs.forEach((trackInfo) => {
             trackInfo.mediaStreamTrack.stop();
         });
         super.stop();
@@ -389,45 +390,45 @@ async function setPublishingLayersForSender(
                 encoding.scaleResolutionDownBy = 2 ** (2 - maxQuality);
               */
             }
-        }else{
+        } else {
             // simulcast dynacast encodings
-            encodings.forEach((encoding,idx)=>{
-                let rid=encoding.rid??'';
-                if(rid===''){
-                    rid='q';
+            encodings.forEach((encoding, idx) => {
+                let rid = encoding.rid ?? '';
+                if (rid === '') {
+                    rid = 'q';
                 }
-                const quality=videoQualityForRid(rid);
-                const subscribedQuality=qualities.find((q)=>q.quality===quality);
-                if(!subscribedQuality){
+                const quality = videoQualityForRid(rid);
+                const subscribedQuality = qualities.find((q) => q.quality === quality);
+                if (!subscribedQuality) {
                     return;
                 }
-                if(encoding.active!==subscribedQuality.enabled){
-                    hasChanged=true;
-                    encoding.active=subscribedQuality.enabled;
-                    log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active?'enabled':'disabled'}` );
+                if (encoding.active !== subscribedQuality.enabled) {
+                    hasChanged = true;
+                    encoding.active = subscribedQuality.enabled;
+                    log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`);
                 }
 
                 // FireFox不支持将encoding.active设置为false，所以我们
                 // 有一个解决方法，将其比特率和分辨率降低到最小值。
-                if(isFireFox()){
-                    if(subscribedQuality.enabled){
-                        encoding.scaleResolutionDownBy=senderEncodings[idx].scaleResolutionDownBy;
-                        encoding.maxBitrate=senderEncodings[idx].maxBitrate;
+                if (isFireFox()) {
+                    if (subscribedQuality.enabled) {
+                        encoding.scaleResolutionDownBy = senderEncodings[idx].scaleResolutionDownBy;
+                        encoding.maxBitrate = senderEncodings[idx].maxBitrate;
                         /* @ts-ignore */
-                        encoding.maxFramerate=senderEncodings[idx].maxFramerate;
-                    }else{
-                        encoding.scaleResolutionDownBy=4;
-                        encoding.maxFramerate=10;
+                        encoding.maxFramerate = senderEncodings[idx].maxFramerate;
+                    } else {
+                        encoding.scaleResolutionDownBy = 4;
+                        encoding.maxFramerate = 10;
                         /* @ts-ignore */
-                        encoding.maxFramerate=2;
+                        encoding.maxFramerate = 2;
                     }
                 }
             });
         }
 
-        if(hasChanged){
-            params.encodings=encodings;
-            log.debug(`setting encodings`,params.encodings);
+        if (hasChanged) {
+            params.encodings = encodings;
+            log.debug(`setting encodings`, params.encodings);
             await sender.setParameters(params);
         }
     } finally {
@@ -435,8 +436,8 @@ async function setPublishingLayersForSender(
     }
 }
 
-export function videoQualityForRid(rid:string):VideoQuality{
-    switch (rid){
+export function videoQualityForRid(rid: string): VideoQuality {
+    switch (rid) {
         case 'f':
             return VideoQuality.HIGH;
         case 'h':
@@ -448,5 +449,56 @@ export function videoQualityForRid(rid:string):VideoQuality{
     }
 }
 
+export function videoLayersFromEncodings(
+    width: number,
+    height: number,
+    encodings?: RTCRtpEncodingParameters[],
+    svc?: boolean
+): VideoLayer[] {
+    // default to a single layer, HQ
+    if (!encodings) {
+        return [
+            {
+                quality: VideoQuality.HIGH,
+                width,
+                height,
+                bitrate: 0,
+                ssrc: 0,
+            },
+        ];
+    }
+
+    if (svc) {
+        // svc layers
+        /* @ts-ignore */
+        const sm = new ScalabilityMode(encodings[0].scalabilityMode);
+        const layers = [];
+        for (let i = 0; i < sm.spatial; i += 1) {
+            layers.push({
+                quality: VideoQuality.HIGH - i,
+                width: width / 2 ** i,
+                height: height / 2 ** i,
+                bitrate: encodings[0].maxBitrate ? encodings[0].maxBitrate / 3 ** i : 0,
+                ssrc: 0,
+            });
+        }
+        return layers;
+    }
+
+    return encodings.map((encoding) => {
+        const scale = encoding.scaleResolutionDownBy ?? 1;
+        let quality = videoQualityForRid(encoding.rid ?? '');
+        if (quality === VideoQuality.UNRECOGNIZED && encodings.length === 1) {
+            quality = VideoQuality.HIGH;
+        }
+        return {
+            quality,
+            width: width / scale,
+            height: height / scale,
+            bitrate: encoding.maxBitrate ?? 0,
+            ssrc: 0,
+        };
+    });
+}
 
 
