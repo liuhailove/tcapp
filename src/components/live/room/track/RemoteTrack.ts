@@ -1,5 +1,5 @@
 import {Track} from "@/components/live/room/track/Track";
-import {TrackEvent} from "@/components/live/room/events";
+import {TrackEvent} from "@/components/live/room/LiveEvents";
 import {monitorFrequency} from "@/components/live/room/stats";
 
 export default abstract class RemoteTrack extends Track {

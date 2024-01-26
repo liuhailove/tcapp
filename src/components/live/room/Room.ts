@@ -52,7 +52,6 @@ import {AdaptiveStreamSettings} from "@/components/live/room/track/types";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 import {getNewAudioContext} from "@/components/live/room/track/utils";
-import {EngineEvent, ParticipantEvent, RoomEvent, TrackEvent} from '@/components/live/room/events';
 import {toProtoSessionDescription} from "@/components/live/api/SignalClient";
 import CriticalTimers from "@/components/live/timers";
 import {SimulationOptions} from "@/components/live/room/types";
@@ -718,8 +717,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         } else if (kind === 'audiooutput') {
             // TODO add support for webaudio mix once the API becomes available https://github.com/WebAudio/web-audio-api/pull/2498
             if (!supportsSetSinkId()) {
-                throw new Error('cannot switch audio output, setSinkId not supported';
-            )
+                throw new Error('cannot switch audio output, setSinkId not supported');
             }
             this.options.audioOutput ??= {};
             const prevDeviceId = this.options.audioOutput.deviceId;
@@ -1500,7 +1498,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                     publishOptions.useRealTracks
                         ? (await navigator.mediaDevices.getUserMedia({video: true})).getVideoTracks()[0]
                         : createDummyVideoStreamTrack(
-                            160 * participantOptions.aspectRatio[0] ?? 1,
+                            160 * participantOptions.aspectRatios[0] ?? 1,
                             160,
                             true,
                             true,
@@ -1541,7 +1539,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             const p = this.getOrCreateParticipant(info.identity, info);
             if (participantOptions.video) {
                 const dummyVideo = createDummyVideoStreamTrack(
-                    160 * participantOptions.aspectRatios[i * participantOptions.aspectRatios.length] ?? 1,
+                    160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
                     160,
                     false,
                     true,
@@ -1602,6 +1600,7 @@ export type RoomEventCallbacks = {
     trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => void;
     trackMuted: (publication: TrackPublication, participant: Participant) => void;
     trackUnmuted: (publication: TrackPublication, participant: Participant) => void;
+    localTrackPublished: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
     localTrackUnpublished: (publication: LocalTrackPublication, participant: LocalParticipant,) => void;
     localAudioSilenceDetected: (publication: LocalTrackPublication) => void;
     participantMetadataChanged: (metadata: string | undefined, participant: RemoteParticipant | LocalParticipant,) => void;

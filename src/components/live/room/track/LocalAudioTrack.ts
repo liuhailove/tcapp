@@ -4,7 +4,7 @@ import {Track} from "@/components/live/room/track/Track";
 import log from "@/components/live/logger";
 import {AudioCaptureOptions} from "@/components/live/room/track/options";
 import {isWeb} from "@/components/live/room/utils";
-import {TrackEvent} from "@/components/live/room/events";
+import {TrackEvent} from "@/components/live/room/LiveEvents";
 import {constraintsForOptions, detectSilence} from "@/components/live/room/track/utils";
 
 

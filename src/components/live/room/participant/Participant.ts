@@ -13,6 +13,7 @@ import RemoteTrackPublication from "@/components/live/room/track/RemoteTrackPubl
 import LocalTrackPublication from "@/components/live/room/track/LocalTrackPublication";
 import log from "@/components/live/logger";
 import {ParticipantEvent, TrackEvent} from "@/components/live/room/LiveEvents";
+import {LoggerOptions} from "vite";
 
 export enum ConnectionQuality {
     Excellent = 'excellent',
@@ -67,6 +68,32 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     permissions?: ParticipantPermission;
 
     private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
+
+    protected audioContext?: AudioContext;
+
+    // protected log: StructuredLogger = log;
+    //
+    // protected loggerOptions?: LoggerOptions;
+    //
+    // protected get logContext() {
+    //     return {
+    //         ...this.loggerOptions?.loggerContextCb?.(),
+    //         participantSid: this.sid,
+    //         participantId: this.identity,
+    //     };
+    // }
+
+    get isEncrypted() {
+        return (
+            this.tracks.size > 0 &&
+            // TODO
+            Array.from(this.tracks.values()).every((tr) => {
+                // TODO
+                //tr.isEncrypted;
+                return true;
+            })
+        );
+    }
 
     constructor(sid: string, identity: string, name?: string, metadata?: string) {
         super();

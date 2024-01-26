@@ -10,7 +10,7 @@ export interface TrackPublishDefaults {
     /**
      * @实验
      */
-    backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding } | false;
+    backupCodec?: true | false | { codec: BackupVideoCodec; encoding: VideoEncoding };
 
     /**
      * 屏幕共享轨道的编码参数

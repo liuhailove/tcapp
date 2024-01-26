@@ -3,9 +3,9 @@ import LocalTrack from "@/components/live/room/track/LocalTrack";
 import {TrackPublishOptions} from "@/components/live/room/track/options";
 import {TrackInfo} from "@/components/live/protocol/tc_models_pb";
 import {Track} from "@/components/live/room/track/Track";
-import {TrackEvent} from "events";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
+import {TrackEvent} from '@/components/live/room/LiveEvents';
 
 export default class LocalTrackPublication extends TrackPublication {
     track?: LocalTrack = undefined;

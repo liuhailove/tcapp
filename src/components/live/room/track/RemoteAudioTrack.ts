@@ -4,7 +4,7 @@ import {AudioOutputOptions} from "@/components/live/room/track/options";
 import {Track} from "@/components/live/room/track/Track";
 import {supportsSetSinkId} from "@/components/live/room/utils";
 import log from "@/components/live/logger";
-import {TrackEvent} from '@/components/live/room/events';
+import {TrackEvent} from '@/components/live/room/LiveEvents';
 
 export default class RemoteAudioTrack extends RemoteTrack {
     private prevStats?: AudioReceiverStats;

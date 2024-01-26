@@ -3,15 +3,18 @@ import LocalTrackPublication from "@/components/live/room/track/LocalTrackPublic
 import RTCEngine from "@/components/live/room/RTCEngine";
 import {Track} from "@/components/live/room/track/Track";
 import LocalTrack from "@/components/live/room/track/LocalTrack";
-import {ParticipantTrackPermission} from "@/components/live/room/participant/ParticipantTrackPermission";
+import {
+    ParticipantTrackPermission,
+    trackPermissionToProto
+} from "@/components/live/room/participant/ParticipantTrackPermission";
 import {InternalRoomOptions} from "@/components/live/options";
-import {Future, isFireFox, isSafari, isSVCCodec, supportsAV1, supportsVP9} from "@/components/live/room/utils";
+import {Future, isFireFox, isSafari, isSVCCodec, isWeb, supportsAV1, supportsVP9} from "@/components/live/room/utils";
 import {EngineEvent, ParticipantEvent, TrackEvent} from "@/components/live/room/LiveEvents";
 import log from "@/components/live/logger";
 import {
     AudioCaptureOptions,
     BackupVideoCodec,
-    CreateLocalTracksOptions,
+    CreateLocalTracksOptions, isBackupCodec,
     isCodecEqual,
     ScreenShareCaptureOptions,
     ScreenSharePresets,
@@ -31,10 +34,10 @@ import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import {
     AddTrackRequest,
     DataChannelInfo,
-    SignalTarget,
-    TrackPublishedResponse
+    SignalTarget, SubscribedQualityUpdate,
+    TrackPublishedResponse, TrackUnpublishedResponse
 } from "@/components/live/protocol/tc_rtc_pb";
-import {DataPacket, DataPacket_Kind} from "@/components/live/protocol/tc_models_pb";
+import {DataPacket, DataPacket_Kind, ParticipantInfo} from "@/components/live/protocol/tc_models_pb";
 import {DataPublishOptions} from "@/components/live/room/types";
 import RemoteParticipant from "@/components/live/room/participant/RemoteParticipant";
 
@@ -114,7 +117,7 @@ export default class LocalParticipant extends Participant {
 
         this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
 
-        this.engine.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+        this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
 
         this.engine
             .on(EngineEvent.Connected, this.handleReconnected)
@@ -586,7 +589,7 @@ export default class LocalParticipant extends Participant {
             type: Track.kindFromProto(track.kind),
             muted: track.isMuted,
             source: Track.sourceToProto(track.source),
-            disableDtx: !(opts.dtx ?? true);
+            disableDtx: !(opts.dtx ?? true),
             stereo: isStereo,
             disableRed: !(opts.red ?? true),
         });
@@ -1010,6 +1013,191 @@ export default class LocalParticipant extends Participant {
 
         await this.engine.sendDataPacket(packet, kind);
     }
+
+    /**
+     * Control who can subscribe to LocalParticipant's published tracks.
+     *
+     * By default, all participants can subscribe. This allows fine-grained control over
+     * who is able to subscribe at a participant and track level.
+     *
+     * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
+     * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
+     * will not grant permissions to any participants and will require a subsequent
+     * permissions update to allow subscription.
+     *
+     * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
+     *  Takes precedence over [[participantTrackPermissions]] if set to true.
+     *  By default this is set to true.
+     * @param participantTrackPermissions Full list of individual permissions per
+     *  participant/track. Any omitted participants will not receive any permissions.
+     */
+    setTrackSubscriptionPermissions(
+        allParticipantsAllowed: boolean,
+        participantTrackPermissions: ParticipantTrackPermission[] = [],
+    ) {
+        this.participantTrackPermissions = participantTrackPermissions;
+        this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
+        if (this.engine.client.isConnected) {
+            this.updateTrackSubscriptionPermissions();
+        }
+    }
+
+    updateInfo(info: ParticipantInfo): boolean {
+        if (info.sid !== this.sid) {
+            // drop updates that specify a wrong sid.
+            // the sid for local participant is only explicitly set on join and full reconnect
+            return false;
+        }
+        if (!super.updateInfo(info)) {
+            return;
+        }
+
+        // reconcile track mute status.
+        // if server's track mute status doesn't match actual, we'll have to update
+        // the server's copy
+        info.tracks.forEach((ti) => {
+            const pub = this.tracks.get(ti.sid);
+
+            if (pub) {
+                const mutedOnServer = pub.isMuted || (pub.track?.isUpstreamPaused ?? false);
+                if (mutedOnServer !== ti.muted) {
+                    log.debug('updating server state after reconcile', {
+                        sid: ti.sid,
+                        muted: mutedOnServer,
+                    });
+                    this.engine.client.sendMuteTrack(ti.sid, mutedOnServer);
+                }
+            }
+        });
+        return true;
+    }
+
+    private updateTrackSubscriptionPermissions = () => {
+        log.debug('updating track subscription permissions', {
+            allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
+            participantTrackPermissions: this.participantTrackPermissions,
+        });
+        this.engine.client.sendUpdateSubscriptionPermission(
+            this.allParticipantsAllowedToSubscribe,
+            this.participantTrackPermissions.map((p) => trackPermissionToProto(p)),
+        );
+    };
+
+    private onTrackUnmuted = (track: LocalTrack) => {
+        this.onTrackMuted(track, track.isUpstreamPaused);
+    };
+
+    // when the local track changes in mute status, we'll notify server as such
+    private onTrackMuted = (track: LocalTrack, muted?: boolean) => {
+        if (muted === undefined) {
+            muted = true;
+        }
+
+        if (!track.sid) {
+            log.error('could not update mute status for unpublished track', track);
+            return;
+        }
+
+        this.engine.updateMuteStatus(track.sid, muted);
+    };
+
+    private onTrackUpstreamPaused = (track: LocalTrack) => {
+        log.debug('upstream paused');
+        this.onTrackMuted(track, true);
+    };
+
+    private onTrackUpstreamResumed = (track: LocalTrack) => {
+        log.debug('upstream resumed');
+        this.onTrackMuted(track, track.isMuted);
+    };
+
+    private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
+        if (!this.roomOptions?.dynacast) {
+            return;
+        }
+        const pub = this.videoTracks.get(update.trackSid);
+        if (!pub) {
+            log.warn('received subscribed quality update for unknown track', {
+                method: 'handleSubscribedQualityUpdate',
+                sid: update.trackSid,
+            });
+            return;
+        }
+        if (update.subscribedCodecs.length > 0) {
+            if (!pub.videoTrack) {
+                return;
+            }
+            const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
+            for await (const codec of newCodecs) {
+                if (isBackupCodec(codec)) {
+                    log.debug(`publish ${codec} for ${pub.videoTrack.sid}`);
+                    await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
+                }
+            }
+        } else if (update.subscribedQualities.length > 0) {
+            await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+        }
+    };
+
+    private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
+        const track = this.tracks.get(unpublished.trackSid);
+        if (!track) {
+            log.warn('received unpublished event for unknown track', {
+                method: 'handleLocalTrackUnpublished',
+                trackSid: unpublished.trackSid,
+            });
+            this.unpublishTrack(track.track!);
+        }
+    };
+
+    private handleTrackEnded = async (track: LocalTrack) => {
+        if (track.source === Track.Source.ScreenShare ||
+            track.source === Track.Source.ScreenShareAudio
+        ) {
+            log.debug('unpublishing local track due to TrackEnded', {
+                track: track.sid,
+            });
+            this.unpublishTrack(track);
+        } else if (track.isUserProvided) {
+            await track.mute();
+        } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+            try {
+                if (isWeb()) {
+                    try {
+                        const currentPermissions=await navigator?.permissions.query({
+                            // the permission query for camera and microphone currently not supported in Safari and Firefox
+                            // @ts-ignore
+                            name:track.source===Track.Source.Camera?'camera':'microphone',
+                        });
+                        if(currentPermissions && currentPermissions.state==='denied'){
+                            log.warn(`user has revoked access to ${track.source}`);
+
+                            // detect granted change after permissions were denied to try and resume then
+                            currentPermissions.onchange=()=>{
+                              if(currentPermissions.state!=='denied'){
+                                  if(!track.isMuted){
+                                      track.restartTrack();
+                                  }
+                                  currentPermissions.onchange=null;
+                              }
+                            };
+                            throw new Error('GetUserMedia Permission denied');
+                        }
+                    } catch (e: any) {
+                        // permissions query fails for firefox, we continue and try to restart the track
+                    }
+                }
+                if(!track.isMuted){
+                    log.debug('track ended, attempting to use a different device');
+                    await track.restartTrack();
+                }
+            } catch (e: any) {
+                log.warn(`could not restart track, muting instead`);
+                await track.mute();
+            }
+        }
+    };
+
 
     private getPublicationForTrack(
         track: LocalTrack | MediaStreamTrack,

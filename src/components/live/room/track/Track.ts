@@ -1,9 +1,10 @@
+import path from 'path-browserify';
 import {EventEmitter} from 'events';
 
 import type TypedEventEmitter from "typed-emitter";
 import {TrackSource, TrackType} from "@/components/live/protocol/tc_models_pb";
 import {StreamState as ProtoStreamState} from "@/components/live/protocol/tc_rtc_pb";
-import {TrackEvent} from "@/components/live/room/events";
+import {TrackEvent} from "@/components/live/room/LiveEvents";
 import log from "@/components/live/logger";
 import {isFireFox, isSafari, isWeb} from "@/components/live/room/utils";
 const BACKGROUND_REACTION_DELAY = 5000;

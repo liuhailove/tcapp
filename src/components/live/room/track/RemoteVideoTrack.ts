@@ -11,7 +11,7 @@ import {AdaptiveStreamSettings} from "@/components/live/room/track/types";
 import {attachToElement, detachTrack, Track} from "@/components/live/room/track/Track";
 import log from "@/components/live/logger";
 import CriticalTimers from "@/components/live/timers";
-import {TrackEvent} from "@/components/live/room/events";
+import {TrackEvent} from "@/components/live/room/LiveEvents";
 
 const REACTION_DELAY = 100;
 

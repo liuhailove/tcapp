@@ -126,7 +126,7 @@ export function computeVideoEncodings(
         for (let i = 0; i < sm.spatial; i += 1) {
             encodings.push({
                 rid: videoRids[2 - i],
-                maxBitrate: videoEncoding.maxBitrate / 3 ** i;
+                maxBitrate: videoEncoding.maxBitrate / 3 ** i,
                 /* @ts-ignore */
                 maxFramerate: original.encoding.maxFramerate,
             });

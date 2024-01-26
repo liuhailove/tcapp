@@ -3,7 +3,7 @@ import RemoteTrack from "@/components/live/room/track/RemoteTrack";
 import {SubscriptionError, TrackInfo, VideoQuality} from "@/components/live/protocol/tc_models_pb";
 import {Track} from "@/components/live/room/track/Track";
 import {UpdateSubscription, UpdateTrackSettings} from "@/components/live/protocol/tc_rtc_pb";
-import {TrackEvent} from "@/components/live/room/events";
+import {TrackEvent} from "@/components/live/room/LiveEvents";
 import RemoteVideoTrack from "@/components/live/room/track/RemoteVideoTrack";
 import log from "@/components/live/logger";
 
