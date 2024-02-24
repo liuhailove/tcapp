@@ -17,7 +17,7 @@
     </div>
 
     <!-- 回到顶部按钮 -->
-    <van-back-top />
+    <van-back-top/>
   </div>
 </template>
 <script setup>
@@ -45,55 +45,58 @@ onMounted(() => {
 })
 
 // 初始化顶部菜单
-const tobBar = ref([]);
+const tobBar = ref([
+  {
+    name: "all",
+    title: "全部",
+    icon: "",
+    to: "/all",
+    id: 1,
+  },
+  {
+    name: "toBePaid",
+    title: "待支付",
+    icon: "",
+    to: "/toBePaid",
+    id: 2,
+    badge: "10+"
+  },
+  {
+    name: "toBeDelivered",
+    title: "待发货",
+    icon: "",
+    to: "/toBeDelivered",
+    id: 3,
+  },
+  {
+    name: "toBeReceiptUse",
+    title: "待收货/使用",
+    icon: "",
+    to: "/toBeReceiptUse",
+    id: 4,
+  },
+  {
+    name: "evaluate",
+    title: "评价",
+    icon: "",
+    to: "/evaluate",
+    id: 5,
+  },
+  {
+    name: "sales",
+    title: "售后",
+    icon: "",
+    to: "/sales",
+    id: 7,
+  },
+]);
 const initData = () => {
-  tobBar.value = [
-    {
-      name: "all",
-      title: "全部",
-      icon: "",
-      to: "/all",
-      id: 1,
-    },
-    {
-      name: "toBePaid",
-      title: "待支付",
-      icon: "",
-      to: "/toBePaid",
-      id: 2,
-      badge:"10+"
-    },
-    {
-      name: "toBeDelivered",
-      title: "待发货",
-      icon: "",
-      to: "/toBeDelivered",
-      id: 3,
-    },
-    {
-      name: "toBeReceiptUse",
-      title: "待收货/使用",
-      icon: "",
-      to: "/toBeReceiptUse",
-      id: 4,
-    },
-    {
-      name: "evaluate",
-      title: "评价",
-      icon: "",
-      to: "/evaluate",
-      id: 5,
-    },
-    {
-      name: "sales",
-      title: "售后",
-      icon: "",
-      to: "/sales",
-      id: 7,
-    },
-  ]
+
 }
 
+const loadData=(type='refresh')=>{
+
+}
 </script>
 
 <style lang="less" scoped>

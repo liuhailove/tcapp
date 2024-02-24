@@ -1,4 +1,5 @@
-import {createApp} from 'vue'
+import  {createApp} from 'vue'
+import Vue from 'vue'
 import '@/style.css'
 import App from '@/App.vue'
 import {
@@ -18,6 +19,8 @@ import {
     Toast, Dialog, Notify, ImagePreview,
     ActionBar, ActionBarIcon, ActionBarButton,
     BackTop,
+    PullRefresh,
+    List,
     setToastDefaultOptions
 } from 'vant';
 import {Icon} from "vant";
@@ -26,6 +29,8 @@ import router from '@/router';
 import "vant/es/toast/style"; //轻提示样式
 import "amfe-flexible";
 import '@vant/touch-emulator';
+import Vuex from 'vuex'
+import store from '@/store'
 
 const app = createApp(App);
 // setToastDefaultOptions({ duration: 800 }); //修改轻提示默认配置
@@ -95,8 +100,12 @@ app.use(CouponCell).use(CouponList);
 app.use(Search);
 // 边框
 app.use(Sidebar).use(SidebarItem);
-// 懒加载
-app.use(Lazyload);
+// 下拉搜索
+app.use(PullRefresh);
+// 列表组件
+app.use(List);
+// // 懒加载
+// app.use(Lazyload);
 // app.use(store);
 
 // console.log(import.meta.env)
@@ -105,6 +114,10 @@ app.use(ActionBarIcon);
 app.use(ActionBarButton);
 // 回到顶部
 app.use(BackTop);
+
+// vuex
+app.use(Vuex);
+app.use(store);
 
 app.mount('#app');
 

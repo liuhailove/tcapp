@@ -1,9 +1,284 @@
 <template>
+  <div class="container">
+    <div class="row">
+      <div class="col-md-8">
+        <h2>Livekit Sample App</h2>
+        <br/>
+        <div id="connect-area">
+          <div>
+            <b>LiveKit URL</b>
+          </div>
+          <div>
+            <input type="text" class="form-control" id="url" value="ws://localhost:7880"/>
+          </div>
+          <div>
+            <b>Token</b>
+          </div>
+          <div>
+            <input type="text" class="form-control" id="token"/>
+          </div>
+          <div>
+            <b>E2EE key</b>
+          </div>
+          <div>
+            <input type="text" class="form-control" id="crypto-key"/>
+          </div>
+        </div>
 
+        <!-- connect options -->
+        <div id="options-area">
+          <div>
+            <input type="checkbox" class="form-check-input" id="publish-option" checked/>
+            <label for="publish-option" class="form-check-label"> Publish </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="simulcast" checked/>
+            <label for="simulcast" class="form-check-label"> Simulcast </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="dynacast" checked/>
+            <label for="dynacast" class="form-check-label"> Dynacast </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="adaptive-stream" checked/>
+            <label for="adaptive-stream" class="form-check-label"> AdaptiveStream </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="force-turn"/>
+            <label for="force-turn" class="form-check-label"> Force TURN </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="auto-subscribe" checked/>
+            <label for="auto-subscribe" class="form-check-label"> Auto Subscribe </label>
+          </div>
+          <div>
+            <input type="checkbox" class="form-check-input" id="e2ee"/>
+            <label for="e2ee" class="form-check-label"> E2E Encryption </label>
+          </div>
+          <div>
+            <select id="preferred-codec" class="custom-select" style="width: auto"></select>
+          </div>
+        </div>
+
+        <!-- actions -->
+        <div id="actions-area">
+          <div>
+            <button
+                id="connect-button"
+                class="btn btn-primary mt-1"
+                type="button"
+                onclick="appActions.connectWithFormInput()"
+            >
+              Connect
+            </button>
+          </div>
+          <div>
+            <button
+                id="toggle-audio-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.toggleAudio()"
+            >
+              Enable Mic
+            </button>
+            <button
+                id="toggle-video-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.toggleVideo()"
+            >
+              Enable Camera
+            </button>
+            <button
+                id="flip-video-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.flipVideo()"
+            >
+              Flip Camera
+            </button>
+            <button
+                id="share-screen-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.shareScreen()"
+            >
+              Share Screen
+            </button>
+            <button
+                id="toggle-e2ee-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.toggleE2EE()"
+            >
+              Enable E2EE
+            </button>
+            <button
+                id="e2ee-ratchet-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.ratchetE2EEKey()"
+            >
+              Ratchet Key
+            </button>
+            <select
+                id="simulate-scenario"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handleScenario(event)"
+            >
+              <option value="" selected>Simulate</option>
+              <option value="signal-reconnect">Signal reconnect</option>
+              <option value="full-reconnect">Full reconnect</option>
+              <option value="resume-reconnect">Resume reconnect</option>
+              <option value="disconnect-signal-on-resume">Signal disconnect on resume</option>
+              <option value="disconnect-signal-on-resume-no-messages">
+                Signal disconnect on resume no msgs
+              </option>
+              <option value="speaker">Speaker update</option>
+              <option value="node-failure">Node failure</option>
+              <option value="server-leave">Server booted</option>
+              <option value="migration">Migration</option>
+              <option value="force-tcp">Force TCP</option>
+              <option value="force-tls">Force TURN/TLS</option>
+              <option value="subscribe-all">Subscribe all</option>
+              <option value="unsubscribe-all">Unsubscribe all</option>
+            </select>
+            <button
+                id="disconnect-room-button"
+                class="btn btn-danger mt-1"
+                disabled
+                type="button"
+                onclick="appActions.disconnectRoom()"
+            >
+              Disconnect
+            </button>
+            <button
+                id="start-audio-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.startAudio()"
+            >
+              Start Audio
+            </button>
+            <select
+                id="preferred-quality"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handlePreferredQuality(event)"
+            >
+              <option value="" selected>PreferredQuality</option>
+              <option value="high">high</option>
+              <option value="medium">medium</option>
+              <option value="low">low</option>
+            </select>
+            <select
+                id="preferred-fps"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handlePreferredFPS(event)"
+            >
+              <option value="" selected>PreferredFPS</option>
+              <option value="30">30</option>
+              <option value="15">15</option>
+              <option value="8">8</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="inputs-area">
+          <div>
+            <select
+                id="video-input"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+            >
+              <option selected>Video Input (default)</option>
+            </select>
+          </div>
+          <div>
+            <select
+                id="audio-input"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+            >
+              <option selected>Audio Input (default)</option>
+            </select>
+          </div>
+          <div>
+            <select
+                id="audio-output"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+            >
+              <option selected>Audio Output (default)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <h3>Chat</h3>
+        <div id="chat-area">
+          <textarea class="form-control" id="chat" rows="9"></textarea>
+          <div id="chat-input-area">
+            <div>
+              <input
+                  type="text"
+                  class="form-control"
+                  id="entry"
+                  placeholder="Type your message here"
+              />
+            </div>
+            <div>
+              <button
+                  id="send-button"
+                  class="btn btn-primary"
+                  type="button"
+                  onclick="appActions.enterText()"
+                  disabled
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="screenshare-area">
+      <div>
+        <span id="screenshare-info"> </span>
+        <span id="screenshare-resolution"> </span>
+      </div>
+      <video id="screenshare-video" autoplay playsinline></video>
+    </div>
+
+    <div id="participants-area"></div>
+
+    <div id="log-area">
+      <textarea id="log"></textarea>
+    </div>
+  </div>
 </template>
 <script setup lang="ts">
-import tcAppActions from '@/views/live/components/api/app.ts'
-
-tcAppActions.connectWithFromInput();
+// import {appActions} from '@/views/live/components/api/app';
+//
+// export default {
+//   data() {
+//     return {
+//       appActions: appActions,
+//     };
+//   }
+// }
+//
+// // console.info(appActions);
+// // tcAppActions.connectWithFromInput();
 
 </script>

@@ -61,12 +61,54 @@ const routes: Array<RouteRecordRaw> = [
                     component: () => import("@/views/mall/goods/detail/Index.vue")
                 },
                 {
+                    path: '/product/:productId',
+                    name: 'product',
+                    component: () => import("@/views/mall/product/product.vue")
+                },
+                {
+                    // 订单
+                    path: '/mall/order',
+                    name: 'orderDetail',
+                    component: () => import("@/views/mall/order/orderDetail.vue"),
+                },
+                {
+                    // 订单
+                    path: '/mall/createOrder',
+                    name: 'createOrder',
+                    component: () => import("@/views/mall/order/createOrder.vue"),
+                },
+                {
+                    // 支付
+                    path: '/mall/payment',
+                    name: 'payment',
+                    component: () => import("@/views/mall/order/payment/pay.vue"),
+                },
+                {
+                    // 支付成功
+                    path: '/mall/paySuccess',
+                    name: 'paySuccess',
+                    component: () => import("@/views/mall/order/payment/paySuccess.vue"),
+                },
+                {
+                    path: '/mall/cart',
+                    name: 'cart',
+                    component: () => import("@/views/mall/cart/cart.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
                     path: '/user/myorders',
                     name: 'myorders',
                     component: () => import("@/views/user/myorders/Index.vue"),
                     meta: {
                         keepAlive: true
                     },
+                },
+                {
+                    path: 'order',
+                    name: 'userOrder',
+                    component: () => import('@/views/user/order/Index.vue'),
                 },
                 {
                     path: '/user/address',
@@ -106,12 +148,13 @@ const routes: Array<RouteRecordRaw> = [
         // 登录
         path: '/login',
         name: 'login',
-        component: () => import("@/views/login/Index.vue")
+        component: () => import("@/views/public/login.vue")
     }
 ];
 
 const router = createRouter({
     history: createWebHashHistory(),
+    parseQuery: true,
     routes: routes,
     scrollBehavior: () => ({y: 0}),
 } as RouterOptions);

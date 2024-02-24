@@ -48,8 +48,8 @@ function updateSearchParams(url: string, token: string, key: string) {
     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
-const tcAppActions = {
-    connectWithFromInput: async () => {
+const appActions = {
+    connectWithFormInput: async () => {
         console.info("in connectWithFormInput");
         const url = (<HTMLInputElement>$('url')).value;
         const token = (<HTMLInputElement>$('token')).value;
@@ -100,7 +100,7 @@ const tcAppActions = {
                 iceTransportPolicy: 'relay',
             };
         }
-        await tcAppActions.connectToRoom(url, token, roomOpts, connectOpts, true);
+        await appActions.connectToRoom(url, token, roomOpts, connectOpts, true);
 
         state.bitrateInterval = setInterval(renderBitrate, 1000);
         console.info("connect succeed");
@@ -381,17 +381,16 @@ const tcAppActions = {
             });
         }
     },
-
-
 }
 
 declare global {
     interface Window {
-        currentRoom: any,
-        appActions: typeof tcAppActions;
+        currentRoom: any;
+        appActions: typeof appActions;
     }
 }
-window.appActions = tcAppActions;
+
+window.appActions = appActions;
 
 // --------------------------- event handlers ------------------------------- //
 
@@ -860,4 +859,4 @@ function populateSupportedCodecs() {
 acquireDeviceList();
 populateSupportedCodecs();
 
-export default tcAppActions;
+export default appActions;
