@@ -7,8 +7,8 @@
       @click-left="onClickLeft"
   />
   <div class="status-section">
-   <van-image :src="orderStatus.image" class="icon"/>
-    <p class="label-text">{{orderStatus.text}}</p>
+    <van-image :src="orderStatus.image" class="icon"/>
+    <p class="label-text">{{ orderStatus.text }}</p>
   </div>
   <van-cell-group style="margin-top: 0.6rem">
     <van-cell title="姓名">{{ order.receiverName }}</van-cell>
@@ -129,48 +129,16 @@
 </template>
 
 <script setup lang="ts">
-import {fetchOrderDetail, generateOrder} from "@/api/order";
-import {showConfirmDialog, showToast} from "vant";
+import {cancelUserOrder, fetchOrderDetail} from "@/api/order";
 import {moneyFormat} from "@/utils/filter";
 import {formatDate} from "@/utils/date";
+import {showConfirmDialog} from "vant";
 
 const orderId = ref(null);
 const order = ref({});
 const orderStatus = ref({});
-// 联系人
-const concat = ref({
-  type: 'add',
-  name: undefined,
-  tel: undefined,
-  id: undefined,
-  address: undefined
-});
-// 优惠券
-const coupons = ref([]);
-// 被选择的券
-const chosenCoupon = ref(-1);
-const currCoupon = ref(null);
-// 是否显示优惠券
-const showCoupon = ref(false);
 // 运费
 const freight = ref(8);
-// 商品列表
-const goodsList = ref([]);
-// 勾选商品总价
-const selectedTotalPrice = ref(0);
-const buyerMessage = ref(undefined);
-// 收货地址
-const memberReceiveAddressList = ref([]);
-// 当前地址
-const currentAddress = ref({});
-// 订单金额
-const calcAmount = ref({});
-// 使用积分
-const useIntegration = ref(0);
-// 积分使用设置
-const integrationConsumeSetting = ref({});
-// 会员积分
-const memberIntegration = ref(0);
 const chosenAddressId = ref(null);
 const disabledList = ref([]);
 const couponList = ref([]);
@@ -182,7 +150,6 @@ const route = useRoute();
 
 onMounted(() => {
   orderId.value = route.params.orderId;
-  console.info(route.params.orderId);
   loadData();
 });
 
@@ -270,87 +237,32 @@ const formatPayType = (payType) => {
   }
   return null;
 }
-// 获取默认收货地址
-const getDefaultAddress = (memberReceiveAddressList) => {
-  for (let item of memberReceiveAddressList) {
-    if (item.defaultStatus === 1) {
-      return item;
-    }
-  }
-  if (memberReceiveAddressList != null && memberReceiveAddressList.length > 0) {
-    return memberReceiveAddressList[0];
-  }
-  return {};
-}
-
-const formatOrderStatus = (status) => {
-  let desc;
-  if (status === 1) {
-    desc = '等待付款'
-  } else if (status === 2) {
-    desc = '等待发货'
-  } else if (status === 3) {
-    desc = '等待收货'
-  } else if (status === 4) {
-    desc = '交易完成'
-  } else if (status === 5) {
-    desc = '交易关闭'
-  }
-  return desc;
-}
 
 // 点击返回
 const onClickLeft = () => {
   router.go(-1)
 }
-
 // 选择地址
 const chooseConcat = () => {
   router.push({path: '/order/address',})
 }
-
-const onChange = (index) => {
-  showCoupon.value = false;
-  chosenCoupon.value = index;
-  currCoupon.value = couponList.value[chosenCoupon.value];
-  calcPayAmount();
-}
-// 积分转金额
-const calcIntegrationAmount = (integration) => {
-  if (integrationConsumeSetting.value === undefined || integrationConsumeSetting.value === null) {
-    return 0;
-  }
-  if (integrationConsumeSetting.value.couponStatus == 0) {
-    return 0;
-  }
-  return integration / integrationConsumeSetting.value.deductionPerAmount;
-}
-
-const handleIntegrationInput = () => {
-  if (useIntegration.value > memberIntegration.value) {
-    useIntegration.value = memberIntegration.value;
-    showToast({
-      message: `您的积分只有${memberIntegration.value}`,
-      duration: 1000
+// 取消订单
+const cancelOrder = (orderId) => {
+  showConfirmDialog({
+    title: '提示',
+    message:
+        '是否要取消该订单？',
+  }).then(() => {
+    // on confirm
+    cancelUserOrder({
+      orderId: orderId
+    }).then(response => {
+      loadData();
     });
-  }
-  calcPayAmount();
+  }).catch(() => {
+    // on cancel
+  });
 }
-
-//计算支付金额
-const calcPayAmount = () => {
-  var calcAmountVal = calcAmount.value;
-  var payAmount = calcAmountVal.totalAmount - calcAmountVal.promotionAmount - calcAmountVal.freightAmount;
-  // 是否有使用优惠券
-  if (chosenCoupon.value > -1) {
-    payAmount = payAmount - couponList.value[chosenCoupon.value].value / 100;
-  }
-  if (useIntegration.value != 0) {
-    payAmount = payAmount - calcIntegrationAmount(useIntegration.value);
-  }
-  calcAmount.value.payAmount = payAmount;
-}
-
 </script>
 
 

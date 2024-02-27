@@ -27,7 +27,7 @@ const navItems = ref([
       {
         icon: "orders-o",
         text: "我的订单",
-        to: "/user/myorders",
+        to: "/user/order",
         badge: ""
       },
       {

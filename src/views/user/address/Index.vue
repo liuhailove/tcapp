@@ -24,24 +24,30 @@
 </template>
 
 <script setup>
-let route = useRoute()
-let router = useRouter()
+import {fetchAddressList} from "@/api/address";
+
+let route = useRoute();
+let router = useRouter();
 let chosenAddressId = route.query.chosenAddressId
 let tp = route.query.type
-const addressList = ref([
-  {
-    id: 1,
-    name: '河南周口',
-    tel: "1888888888",
-    address: '河南省周口市区一栋',
-  },
-  {
-    id: 2,
-    name: '深圳南山',
-    tel: "1888888888",
-    address: '深圳南山龙岗中心城市',
-  }
-])
+const addressList = ref([]);
+onMounted(() => {
+  fetchAddressList().then(response => {
+    for (let i = 0; i < response.data.length; i++) {
+      let isDefault = false;
+      if (response.data[i].defaultStatus === 1) {
+        isDefault = true;
+      }
+      addressList.value.push({
+        id: response.data[i].id,
+        name: response.data[i].name,
+        tel: response.data[i].phoneNumber,
+        address: response.data[i].province + " " + response.data[i].city + response.data[i].region + response.data[i].detailAddress,
+        isDefault: isDefault,
+      })
+    }
+  });
+});
 const onClickLeft = () => {
   router.back()
 }
@@ -51,7 +57,7 @@ const onAdd = () => {
 }
 
 const onEdit = (item, index) => {
-   router.push({path: "/user/address/edit",params: {addressId: item.id}})
+  router.push({name: 'editAddress', params: {addressId: item.id}});
 }
 
 const onSelect = (item, index) => {
@@ -73,7 +79,7 @@ const onSelect = (item, index) => {
   bottom: 0;
   background-color: #ffffff;
   z-index: 2000;
-  padding-top: 3rem;
+  padding-top: 1rem;
 
   /*转场动画*/
 

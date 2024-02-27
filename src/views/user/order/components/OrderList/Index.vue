@@ -30,10 +30,10 @@
         <div class="order-footer">
           <van-cell :title="formatOrderTotalPrice(item.status,item.payAmount)">
             <template #default>
-              <van-button plain type="default" v-if="item.status===0" size="small">
+              <van-button plain type="default" v-if="item.status===0" size="small" @click="cancelOrder(item.id)">
                 取消订单
               </van-button>
-              <van-button plain type="danger" v-if="item.status===0" size="small" @click="onClickPayment">
+              <van-button plain type="danger" v-if="item.status===0" size="small" @click="payOrder(item.id)">
                 立即付款
               </van-button>
               <van-button plain type="default" v-if="item.status===1" size="small">
@@ -42,10 +42,10 @@
               <van-button plain type="default" v-if="item.status===2" size="small">
                 查看物流
               </van-button>
-              <van-button plain type="default" v-if="item.status===3" size="small">
+              <van-button plain type="default" v-if="item.status===3" size="small" @click="receiveOrder(item.id)">
                 确认收货
               </van-button>
-              <van-button plain type="default" v-if="item.status===3" size="small">
+              <van-button plain type="default" v-if="item.status===3" size="small" @click="deleteOrder(item.id)">
                 删除
               </van-button>
               <van-button plain type="default" v-if="item.status===4" size="small">
@@ -58,6 +58,8 @@
           </van-cell>
         </div>
       </div>
+      <!-- 回到顶部按钮 -->
+      <van-back-top style="z-index: 10000"/>
     </div>
     <div v-else class="no-data">
       <div>
@@ -70,19 +72,67 @@
 
 <script setup>
 import {formatDate} from "@/utils/date";
+import {showConfirmDialog} from "vant";
+import {cancelUserOrder, confirmReceiveOrder, deleteUserOrder} from "@/api/order";
 
 const router = useRouter();
-
 const props = defineProps({
   orderList: {
     type: Array,
     default: []
   }
-})
-// 订单列表
-const onClickPayment = () => {
+});
+let $emit = defineEmits(["child-event"]);
 
+// 删除订单
+const deleteOrder = (orderId) => {
+  showConfirmDialog({
+    title: '提示',
+    message: '是否要删除该订单？'
+  }).then(() => {
+    // 删除订单
+    deleteUserOrder({orderId: orderId}).then(response => {
+      $emit('child-event', 'refresh');
+    });
+  }).catch(() => {
+    // 取消事件
+  });
 }
+
+// 取消订单
+const cancelOrder = (orderId) => {
+  showConfirmDialog({
+    title: '提示',
+    message: '是否要取消该订单？'
+  }).then(() => {
+    // 取消订单
+    cancelUserOrder({orderId: orderId}).then(response => {
+      $emit('child-event', 'refresh');
+    });
+  }).catch(() => {
+    // 取消事件
+  });
+}
+
+// 支付订单
+const payOrder = (orderId) => {
+  router.push({name: "payment", params: {orderId: orderId}});
+}
+// 确认收货
+const receiveOrder = (orderId) => {
+  showConfirmDialog({
+    title: '提示',
+    message: '是否要确认收货？'
+  }).then(() => {
+    // 取消订单
+    confirmReceiveOrder({orderId: orderId}).then(response => {
+      $emit('child-event', 'refresh');
+    });
+  }).catch(() => {
+    // 取消事件
+  });
+}
+
 
 // 查看订单详情
 const showOrderDetail = (orderId) => {
@@ -96,15 +146,15 @@ const showOrderDetail = (orderId) => {
 
 const formatOrderStatus = (status) => {
   let desc;
-  if (status === 1) {
+  if (status === 0) {
     desc = '等待付款'
-  } else if (status === 2) {
+  } else if (status === 1) {
     desc = '等待发货'
-  } else if (status === 3) {
+  } else if (status === 2) {
     desc = '等待收货'
-  } else if (status === 4) {
+  } else if (status === 3) {
     desc = '交易完成'
-  } else if (status === 5) {
+  } else if (status === 4) {
     desc = '交易关闭'
   }
   return desc;
