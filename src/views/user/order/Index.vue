@@ -35,10 +35,10 @@
             <OrderList :orderList="orderList" @child-event="loadData"></OrderList>
           </van-tab>
           <van-tab title="待付款" :name="0">
-            <OrderList :orderList="orderList" @child-event="loadData" ></OrderList>
+            <OrderList :orderList="orderList" @child-event="loadData"></OrderList>
           </van-tab>
           <van-tab title="待发货" :name="1">
-            <OrderList :orderList="orderList" @child-event="loadData" ></OrderList>
+            <OrderList :orderList="orderList" @child-event="loadData"></OrderList>
           </van-tab>
           <van-tab title="待收货/使用" :name="2">
             <OrderList :orderList="orderList" @child-event="loadData"></OrderList>
@@ -68,19 +68,17 @@
         </div>
         <div class="popup-content">
           <!-- 弹出框导航项内容 -->
-          <div v-for="(item, index) in navItems" :key="index">
-            <van-grid :column-num="item.gridItems.length" :border="false" :square="false">
-              <van-grid-item v-for="(gridItem,idx) in item.gridItems"
-                             :key="idx"
-                             :icon="gridItem.icon"
-                             :text="gridItem.text"
-                             :badge="gridItem.badge"
-                             @click="handleGridClick(gridItem.to)"
-                             :style="{height: '10%'}"
-              />
-            </van-grid>
-            <van-divider/>
-          </div>
+          <van-grid :column-num="5" :border="false" :square="false" :justify="'start'">
+            <van-grid-item v-for="(gridItem,idx) in navItems"
+                           :key="idx"
+                           :icon="gridItem.icon"
+                           :text="gridItem.text"
+                           :badge="gridItem.badge"
+                           @click="handleGridClick(gridItem.to)"
+                           :style="{height: '10%'}"
+            />
+          </van-grid>
+          <van-divider/>
         </div>
       </van-popup>
     </div>
@@ -89,6 +87,7 @@
 <script setup lang="ts">
 import OrderList from '@/views/user/order/components/OrderList/Index.vue';
 import {fetchOrderList} from "@/api/order";
+
 const searchValue = ref('');
 const showBottom = ref(false)
 const router = useRouter();
@@ -169,74 +168,78 @@ const handleGridClick = (toUrl) => {
 
 const navItems = ref([
   {
-    gridItems: [
-      {
-        icon: "setting-o",
-        text: "授权设置",
-        to: "/user/config",
-        badge: ""
-      },
-      {
-        icon: "location-o",
-        text: "我的地址",
-        to: "/user/address",
-        badge: ""
-      },
-      {
-        icon: "cart-o",
-        text: "购物车",
-        to: "/",
-        badge: "10"
-      },
-      {
-        icon: "chat-o",
-        text: "客服消息",
-        to: "/",
-        badge: "99"
-      },
-      {
-        icon: "shop-collect-o",
-        text: "同辰商城",
-        to: "/",
-        badge: ""
-      },
-    ]
+    icon: "setting-o",
+    text: "授权设置",
+    to: "/user/config",
+    badge: ""
   },
   {
-    gridItems: [
-      {
-        icon: "coupon-o",
-        text: "卡券红包",
-        to: "/user/coupon",
-        badge: ""
-      },
-      {
-        icon: "comment-o",
-        text: "评价中心",
-        to: "/",
-        badge: ""
-      },
-      {
-        icon: "cash-back-record-o",
-        text: "同辰月付",
-        to: "/",
-        badge: ""
-      },
-      {
-        icon: "hot-sale-o",
-        text: "热卖",
-        to: "/",
-        badge: ""
-      },
-      {
-        icon: "start-o",
-        text: "收藏",
-        to: "/",
-        badge: ""
-      },
-    ]
-  }
-])
+    icon: "location-o",
+    text: "我的地址",
+    to: "/user/address",
+    badge: ""
+  },
+  {
+    icon: "cart-o",
+    text: "购物车",
+    to: "/",
+    badge: "10"
+  },
+  {
+    icon: "chat-o",
+    text: "客服消息",
+    to: "/",
+    badge: "99"
+  },
+  {
+    icon: "shop-collect-o",
+    text: "同辰商城",
+    to: "/",
+    badge: ""
+  },
+  {
+    icon: "coupon-o",
+    text: "卡券红包",
+    to: "/user/coupon",
+    badge: ""
+  },
+  {
+    icon: "comment-o",
+    text: "评价中心",
+    to: "/",
+    badge: ""
+  },
+  {
+    icon: "cash-back-record-o",
+    text: "同辰月付",
+    to: "/",
+    badge: ""
+  },
+  {
+    icon: "hot-sale-o",
+    text: "热卖",
+    to: "/",
+    badge: ""
+  },
+  {
+    icon: "star-o",
+    text: "我的收藏",
+    to: "/user/productCollection",
+    badge: ""
+  },
+  {
+    icon: "browsing-history-o",
+    text: "浏览历史",
+    to: "/user/readHistory",
+    badge: ""
+  },
+  {
+    icon: "like-o",
+    text: "我的关注",
+    to: "/user/brandAttention",
+    badge: ""
+  },
+]);
 </script>
 <style lang="less" scoped>
 
@@ -277,4 +280,5 @@ const navItems = ref([
 .nav-container {
   height: 20px
 }
+
 </style>

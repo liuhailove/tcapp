@@ -20,6 +20,7 @@ export function fetchReadHistoryList(params) {
     return request({
         method: 'GET',
         url: '/member/readHistory/list',
+        params: params
     });
 }
 

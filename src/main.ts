@@ -21,6 +21,7 @@ import {
     BackTop,
     PullRefresh,
     List,
+    Image,
     setToastDefaultOptions
 } from 'vant';
 import {Icon} from "vant";
@@ -114,6 +115,7 @@ app.use(ActionBarIcon);
 app.use(ActionBarButton);
 // 回到顶部
 app.use(BackTop);
+app.use(Image);
 
 // vuex
 app.use(Vuex);

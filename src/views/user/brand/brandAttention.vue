@@ -1,0 +1,205 @@
+<template>
+  <div class="order">
+    <van-nav-bar
+        title="我的关注"
+        :fixed="true"
+        right-text="清空"
+        left-arrow
+        @click-left="onClickLeft"
+        @click-right="clear"
+    />
+    <van-empty description="无关注记录" v-if="brandList==null||brandList.length === 0"/>
+
+    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+      <van-list
+          v-model:loading="loading"
+          :finished="finished"
+          loading-text="加载中..."
+          finished-text="没有更多了"
+          :offset="50"
+          @load="loadData('add')"
+      >
+        <van-grid :border="false" :column-num="1" :gutter="1">
+          <van-grid-item v-for="(item,index) in brandList" @click="navToDetailPage(item.id)">
+            <van-image :src="item.brandLogo" fix="cover"/>
+            <p class="title">品牌：{{ item.brandName }}</p>
+          </van-grid-item>
+        </van-grid>
+      </van-list>
+    </van-pull-refresh>
+
+  </div>
+</template>
+<script setup lang="ts">
+import {showConfirmDialog} from "vant";
+import {formatDate} from "@/utils/date";
+import {clearBrandAttention, fetchBrandAttentionList} from "@/api/memberBrandAttention";
+
+const router = useRouter();
+const brandList = ref([]);
+const refreshing = ref(false);
+const loading = ref(false);
+const finished = ref(false);
+const searchParam = {
+  pageNum: 1,
+  pageSize: 5,
+};
+onMounted(() => {
+  // 初始化数据
+  loadData();
+});
+
+// 刷新
+const onRefresh = () => {
+  // 清空数据
+  finished.value = false;
+  // 重新加载
+  loading.value = false;
+  // 刷新
+  refreshing.value = true;
+  loadData();
+};
+
+const loadData = (type = 'refresh') => {
+  if (type === 'refresh') {
+    searchParam.pageNum = 1;
+    refreshing.value = false;
+  } else {
+    searchParam.pageNum++;
+  }
+  fetchBrandAttentionList(searchParam).then(response => {
+    let list = response.data.list;
+    if (type === 'refresh') {
+      brandList.value = list;
+    } else {
+      if (list != null && list.length > 0) {
+        brandList.value = brandList.value.concat(list);
+        loading.value = true;
+      } else {
+        // 没有更多了
+        searchParam.pageNum--;
+        finished.value = true;
+      }
+    }
+  })
+}
+
+// 清空浏览历史
+const clear = () => {
+  showConfirmDialog({
+    title: '提示',
+    message:
+        '是否要清空所有关注？',
+  }).then(() => {
+    // on confirm
+    clearBrandAttention(
+    ).then(response => {
+      loadData();
+    });
+  }).catch(() => {
+    // on cancel
+  });
+}
+
+const formatDateTime = (time) => {
+  if (time == null || time === '') {
+    return 'N/A';
+  }
+  let date = new Date(time);
+  return formatDate(date, 'yyyy-MM-dd hh:mm:ss')
+}
+const onClickLeft = () => {
+  router.go(-1)
+}
+const navToDetailPage = (id) => {
+  router.push({name: "brandDetail", params: {id: id}});
+}
+
+</script>
+<style lang="less" scoped>
+.content {
+  background: #f8f8f8;
+}
+
+.hot-section {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 30px;
+  margin-top: 16px;
+  background: #fff;
+
+  .guess-item {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding-bottom: 40px;
+  }
+
+  .image-wrapper {
+    width: 30%;
+    height: 17px;
+    border-radius: 2px;
+    overflow: hidden;
+
+    image {
+      width: 100%;
+      height: 100%;
+      opacity: 1;
+    }
+  }
+
+  .title {
+    font-size: 32px;
+    color: #303133;
+    line-height: 80px;
+  }
+
+  .title2 {
+    font-size: 24px;
+    color: #909399;
+    line-height: 40px;
+    height: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .price {
+    font-size: 32px;
+    color: #fa436a;
+    line-height: 80px;
+  }
+
+  .txt {
+    width: 70%;
+    display: flex;
+    flex-direction: column;
+    padding-left: 40px;
+  }
+
+  .hor-txt {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .time {
+    font-size: 24px;
+    color: #303133;
+    line-height: 80px;
+  }
+}
+
+.order {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  background-color: #f5f5f5;
+  z-index: 2000;
+  padding-top: 44px;
+  overflow: auto;
+}
+
+
+</style>

@@ -83,9 +83,9 @@ const navItems = ref([
         badge: ""
       },
       {
-        icon: "start-o",
-        text: "收藏",
-        to: "/",
+        icon: "star-o",
+        text: "我的收藏",
+        to: "/user/productCollection",
         badge: ""
       },
     ]

@@ -240,7 +240,7 @@ const formatPayType = (payType) => {
 
 // 点击返回
 const onClickLeft = () => {
-  router.go(-1)
+  router.back();
 }
 // 选择地址
 const chooseConcat = () => {

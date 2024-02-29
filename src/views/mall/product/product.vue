@@ -134,6 +134,7 @@
       <van-action-bar-icon icon="chat-o" text="客服" dot/>
       <van-action-bar-icon icon="cart-o" text="购物车" badge="5" @click="onClickCart"/>
       <van-action-bar-icon icon="shop-o" text="店铺" badge="12"/>
+      <van-action-bar-icon icon="star" text="收藏" @click="toFavorite" :color="favorite===true?'#ff5000':''"/>
       <van-action-bar-button type="warning" text="加入购物车" @click="onAddCartClicked"/>
       <van-action-bar-button type="danger" text="立即购买"/>
     </van-action-bar>
@@ -163,11 +164,12 @@
 import {fetchProductDetail} from "@/api/product";
 import {useRoute} from 'vue-router';
 import {createReadHistory} from "@/api/memberReadHistory";
-import {mapActions, useStore} from "vuex";
-import {mapState} from 'vuex';
-import {Dialog, showConfirmDialog, showToast, Toast} from "vant";
+import {showConfirmDialog, showSuccessToast, showToast, Toast} from "vant";
 import {addCartItem} from "@/api/cart";
+import store from "@/store";
+import {createProductCollection, deleteProductCollection, productCollectionDetail} from "@/api/memberProductCollection";
 
+const favorite = ref(false);
 const defaultShareList = [{
   type: 1,
   icon: '/static/temp/share_wechat.png',
@@ -197,26 +199,24 @@ const brand = ref({});
 const serviceList = ref([]);
 const skuStockList = ref([]);
 const attrList = ref([]);
-const promotionTipList = ref([]);
 const couponState = ref(0);
 const couponList = ref([]);
 const showCouponList = ref(false);
 const chosenCoupon = ref(-1);
 const specSelected = ref([]);
 const route = useRoute();
-const store = useStore();
 
 
 onMounted(() => {
   shareList.value = defaultShareList;
-  loadData(route.params.productId)
+  loadData(route.params.productId);
 });
 
 /**
  * 加载商品数据
  * @param id 主键ID
  */
-const loadData = async (id) => {
+const loadData = (id) => {
   fetchProductDetail(id).then(response => {
     goodsProduct.value = response.data.product;
     skuStockList.value = response.data.skuStockList;
@@ -224,6 +224,7 @@ const loadData = async (id) => {
     initImgList();
     initAttrList(response.data);
     handleReadHistory();
+    initProductCollection();
   });
 };
 
@@ -267,7 +268,7 @@ const handleReadHistory = () => {
     productPrice: product.price,
     productSubTitle: product.subTitle,
   };
-  //createReadHistory(data);
+  createReadHistory(data);
 };
 
 const onCouponChange = (index) => {
@@ -275,35 +276,19 @@ const onCouponChange = (index) => {
   chosenCoupon.value = index;
 };
 
-const coupon = {
-  available: 1,
-  condition: '无门槛\n最多优惠12元',
-  reason: '',
-  value: 150,
-  name: '优惠券名称',
-  startAt: 1489104000,
-  endAt: 1514592000,
-  valueDesc: '1.5',
-  unitDesc: '元',
-};
 const onCouponExchange = (code) => {
-  couponList.value.push(coupon);
+  couponList.value.push({});
 };
 
-const disabledCoupons = ref([coupon]);
-
-
-const shopCart = ref(1)
+const disabledCoupons = ref([]);
 const router = useRouter()
-
-// const productNum = ref(10)
 const showSku = ref(true);
 const quota = ref(1);
 const seckill = ref(false);
 
 
 const onClickLeft = () => {
-  router.go(-1)
+  router.go(-1);
 }
 
 const showSkuClicked = () => {
@@ -341,7 +326,7 @@ const onAddCartClicked = () => {
   };
   addCartItem(cartItem).then(response => {
     showToast({
-      message: response.message,
+      message: response.data.message,
       duration: 3000,
     });
   });
@@ -400,6 +385,41 @@ const userToken = () => {
 
 }
 
+// 收藏
+const toFavorite = () => {
+  if (favorite.value) {
+    // 取消收藏
+    deleteProductCollection({
+      productId: route.params.productId,
+    }).then(response => {
+      showSuccessToast('取消收藏成功');
+      favorite.value = !favorite.value;
+    });
+  } else {
+    //收藏
+    let productCollection = {
+      productId: goodsProduct.value.id,
+      productName: goodsProduct.value.name,
+      productPic: goodsProduct.value.pic,
+      productPrice: goodsProduct.value.price,
+      productSubTitle: goodsProduct.value.subTitle
+    }
+    createProductCollection(productCollection).then(response => {
+      showSuccessToast('收藏成功');
+      favorite.value = !favorite.value;
+    });
+  }
+
+}
+
+// 初始化收藏状态
+const initProductCollection = () => {
+  productCollectionDetail({
+    productId: route.params.productId
+  }).then(response => {
+    favorite.value = response.data != null;
+  });
+}
 
 </script>
 

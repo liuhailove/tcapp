@@ -112,6 +112,7 @@ const syncUserInfo = (data) => {
 const syncToken = (token) => {
   store.dispatch('syncToken', token);
 }
+
 // 使用 mapState 获取hshLogin属性
 const onClickLeft = () => {
   router.go(-1);

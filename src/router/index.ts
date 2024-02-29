@@ -40,6 +40,11 @@ const routes: Array<RouteRecordRaw> = [
                     },
                 },
                 {
+                    path: '/message',
+                    name: 'message',
+                    component: () => import("@/views/user/message/message.vue"),
+                },
+                {
                     path: '/author',
                     name: 'author',
                     component: () => import("@/views/user/components/author/Index.vue"),
@@ -63,7 +68,10 @@ const routes: Array<RouteRecordRaw> = [
                 {
                     path: '/product/:productId',
                     name: 'product',
-                    component: () => import("@/views/mall/product/product.vue")
+                    component: () => import("@/views/mall/product/product.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
                 },
                 {
                     // 订单
@@ -93,6 +101,22 @@ const routes: Array<RouteRecordRaw> = [
                     path: '/mall/cart',
                     name: 'cart',
                     component: () => import("@/views/mall/cart/cart.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/brand/list',
+                    name: 'brandList',
+                    component: () => import("@/views/mall/brand/list.vue"),
+                    meta: {
+                        keepAlive: true
+                    },
+                },
+                {
+                    path: '/brand/detail',
+                    name: 'brandDetail',
+                    component: () => import("@/views/mall/brand/brandDetail.vue"),
                     meta: {
                         keepAlive: true
                     }
@@ -141,6 +165,30 @@ const routes: Array<RouteRecordRaw> = [
                     meta: {
                         keepAlive: true
                     },
+                },
+                {
+                    path: '/user/readHistory',
+                    name: 'readHistory',
+                    component: () => import("@/views/user/history/readHistory.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/user/productCollection',
+                    name: 'productCollection',
+                    component: () => import("@/views/user/collection/productCollection.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
+                },
+                {
+                    path: '/user/brandAttention',
+                    name: 'brandAttention',
+                    component: () => import("@/views/user/brand/brandAttention.vue"),
+                    meta: {
+                        keepAlive: true
+                    }
                 },
             ]
     },

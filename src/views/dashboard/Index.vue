@@ -47,16 +47,6 @@ const tabbars = [
     icon: "chat-o",
     badge: "9"
   },
-  // {
-  //   name: "category",
-  //   title: '分类',
-  //   icon: "wap-nav"
-  // },
-  // {
-  //   name: "cart",
-  //   title: '购物车',
-  //   icon: "cart"
-  // },
   {
     name: "user",
     title: '我的',

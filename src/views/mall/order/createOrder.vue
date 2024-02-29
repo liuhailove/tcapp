@@ -197,7 +197,7 @@ const loadData = () => {
   if (cartIdsStr === undefined || cartIdsStr === '') {
     return;
   }
-  cartIds.value = cartIdsStr.split(',');
+  cartIds.value = String(cartIdsStr).split(',');
   // 生成确认单信息
   generateConfirmOrder(JSON.stringify(cartIds.value)).then(response => {
     let receiveAddressList = [];

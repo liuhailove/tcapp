@@ -19,126 +19,98 @@
                 desc="描述信息"
                 title="商品标题"
                 thumb="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
-                class="van-card-full"
             >
-              <template #tags>
-                <van-tag plain type="primary">标签</van-tag>
-                <van-tag plain type="primary">标签</van-tag>
-              </template>
             </van-card>
           </div>
         </div>
       </div>
     </van-grid-item>
-    <van-grid-item text="低价秒杀">
+    <van-grid-item icon="home-o" text="低价秒杀">
       <div class="spike">
         <div class="spike-header">
           <span class="spike-header-title">低价秒杀</span>
           <div class="spike-header-countdown">
             <div class="spike-header-countdown-lt">
-              '10点场'
+              <div class="spike-header-countdown-lt">
+                '10点场'
+              </div>
+              <div class="spike-header-countdown-rt">
+                <van-count-down :time="time" format="HH:mm:ss"/>
+              </div>
             </div>
-            <div class="spike-header-countdown-rt">
-              <van-count-down :time="time" format="HH:mm:ss"/>
-            </div>
-          </div>
-          <div class="spike-header-more" @click="handleMoreClick">
-            <span class="spike-header-more-text">查看全部</span>
-            <van-icon name="play" size="14"/>
           </div>
         </div>
         <div class="spike-content">
-          <!-- 秒杀商品 -->
+          <!-- 精选商品 -->
           <div class="goods-wrapper">
             <van-card
                 price="2.00"
                 desc="描述信息"
                 title="商品标题"
                 thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
-                class="van-card-full"
             >
-              <template #tags>
-                <van-tag plain type="primary">标签</van-tag>
-                <van-tag plain type="primary">标签</van-tag>
-              </template>
             </van-card>
           </div>
         </div>
       </div>
     </van-grid-item>
-    <van-grid-item text="品牌馆">
+    <van-grid-item icon="home-o" text="品牌馆">
       <div class="spike">
         <div class="spike-header">
           <span class="spike-header-title">品牌馆</span>
+          <div class="spike-header-countdown">
+            <div class="spike-header-countdown-lt">
+              <div class="spike-header-countdown-lt">
+                '10点场'
+              </div>
+              <div class="spike-header-countdown-rt">
+                <van-count-down :time="time" format="HH:mm:ss"/>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="spike-content">
-          <!-- 秒杀商品 -->
+          <!-- 精选商品 -->
           <div class="goods-wrapper">
             <van-card
                 price="2.00"
                 desc="描述信息"
                 title="商品标题"
-                thumb="https://fastly.jsdelivr.net/npm/@vant/assets/ipad.jpeg"
+                thumb="src/assets/images/icon_home_brand.png"
                 class="van-card-full"
+                @click="navToRecommendBrandPage"
             >
-              <template #tags>
-                <van-tag plain type="primary">标签</van-tag>
-                <van-tag plain type="primary">标签</van-tag>
-              </template>
             </van-card>
           </div>
         </div>
       </div>
-
     </van-grid-item>
   </van-grid>
 
 </template>
 
-<script>
-
-
-export default {
-
-  props: {
-    seckillGoodsList: Array,
-  },
-  watch: {
-    spikeInfo: function (newValue, oldValue) {
-      this.seckillGoodsList = newValue
-    }
-  },
-  data() {
-    return {
-      seckillInfoData: {},
-      time: 30 * 60 * 1000 * 100,
-      goodsList: [
-        {
-          id: 1,
-          pic_url: '',
-          retail_price: 100,
-          counter_price: 200,
-        },
-        {
-          id: 2,
-          pic_url: '',
-          retail_price: 100,
-          counter_price: 200,
-        },
-        {
-          id: 3,
-          pic_url: '',
-          retail_price: 100,
-          counter_price: 200,
-        },
-      ]
-    }
-  },
-  methods: {
-    handleMoreClick() {
-    }
+<script setup>
+const router = useRouter();
+const route = useRoute();
+const props = defineProps({
+  seckillGoodsList: {
+    type: Array,
+    default: []
   }
+});
+
+const seckillInfoData = ref({});
+const time = ref(30 * 60 * 1000 * 100);
+
+const navToRecommendBrandPage = () => {
+  router.push({path: '/brand/list',})
 }
+
+
+// watch: {
+//   spikeInfo: function (newValue, oldValue) {
+//     this.seckillGoodsList = newValue
+//   }
 </script>
 
 <style lang="less" scoped>
