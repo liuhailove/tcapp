@@ -1,4 +1,4 @@
-import {Checker} from "@/components/live/room/connectionHelper/checks/Checker";
+import {Checker} from "@/components/live/connectionHelper/checks/Checker";
 import {createLocalVideoTrack} from "@/components/live/room/track/create";
 
 export class PublishVideoCheck extends Checker {

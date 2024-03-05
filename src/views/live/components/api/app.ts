@@ -112,6 +112,7 @@ const appActions = {
         connectOptions?: RoomConnectOptions,
         shouldPublish?: boolean,
     ): Promise<Room | undefined> => {
+        console.info("connectToRoom");
         // 根据房间参数创建房间
         const room = new Room(roomOptions);
         // 记录房间的创建时间

@@ -9,6 +9,19 @@ export enum LogLevel {
     silent = 5,
 }
 
+export enum LoggerNames {
+    Default = "tc",
+    Room = "tc-room",
+    Participant = "tc-participant",
+    Track = "tc-track",
+    Publication = "tc-track-publication",
+    Engine = "tc-engine",
+    Signal = "tc-signal",
+    PCManager = "tc-pc-manager",
+    PCTransport = "tc-pc-transport",
+    E2EE = "tc-e2ee",
+}
+
 type LogLevelString = keyof typeof LogLevel;
 
 type StructuredLogger = {
@@ -21,7 +34,7 @@ type StructuredLogger = {
 
 const tcLogger = log.getLogger("tc")
 
-tcLogger.setDefaultLevel(LogLevel.info)
+tcLogger.setDefaultLevel(LogLevel.debug)
 
 export default tcLogger as StructuredLogger
 

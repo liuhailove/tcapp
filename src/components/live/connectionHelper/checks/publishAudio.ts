@@ -1,4 +1,4 @@
-import {Checker} from "@/components/live/room/connectionHelper/checks/Checker";
+import {Checker} from "@/components/live/connectionHelper/checks/Checker";
 import {createLocalAudioTrack} from "@/components/live/room/track/create";
 
 export class PublishAudioCheck extends Checker {

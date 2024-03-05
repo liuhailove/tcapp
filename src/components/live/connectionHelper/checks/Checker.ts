@@ -159,6 +159,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEventEmitt
 export type InstantiableCheck<T extends Checker> = {
     new(url: string, token: string, options?: CheckerOptions): T;
 };
+
 type CheckerCallbacks = {
     update: (info: CheckInfo) => void;
 };

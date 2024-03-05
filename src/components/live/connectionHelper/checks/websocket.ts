@@ -1,4 +1,4 @@
-import {Checker} from "@/components/live/room/connectionHelper/checks/Checker";
+import {Checker} from "@/components/live/connectionHelper/checks/Checker";
 import {SignalClient} from "@/components/live/api/SignalClient";
 
 export class WebSocketCheck extends Checker {

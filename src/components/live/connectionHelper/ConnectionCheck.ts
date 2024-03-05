@@ -1,17 +1,17 @@
 import {EventEmitter} from "events";
-import TypedEmitter from "typed-emitter/rxjs";
+import type TypedEmitter from 'typed-emitter';
 import {
     Checker,
     CheckInfo,
     CheckStatus,
     InstantiableCheck
-} from "@/components/live/room/connectionHelper/checks/Checker";
-import {WebSocketCheck} from "@/components/live/room/connectionHelper/checks/websocket";
-import {WebRTCCheck} from "@/components/live/room/connectionHelper/checks/webrtc";
-import {TURNCheck} from "@/components/live/room/connectionHelper/checks/turn";
-import {ReconnectCheck} from "@/components/live/room/connectionHelper/checks/reconnect";
-import {PublishAudioCheck} from "@/components/live/room/connectionHelper/checks/publishAudio";
-import {PublishVideoCheck} from "@/components/live/room/connectionHelper/checks/publishVideo";
+} from "@/components/live/connectionHelper/checks/Checker";
+import {WebSocketCheck} from "@/components/live/connectionHelper/checks/websocket";
+import {WebRTCCheck} from "@/components/live/connectionHelper/checks/webrtc";
+import {TURNCheck} from "@/components/live/connectionHelper/checks/turn";
+import {ReconnectCheck} from "@/components/live/connectionHelper/checks/reconnect";
+import {PublishAudioCheck} from "@/components/live/connectionHelper/checks/publishAudio";
+import {PublishVideoCheck} from "@/components/live/connectionHelper/checks/publishVideo";
 
 export type{CheckInfo, CheckStatus};
 

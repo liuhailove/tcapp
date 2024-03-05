@@ -174,14 +174,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             const joinResponse = await this.client.join(url, token, opts, abortSignal);
             this._isClosed = false;
             this.latestJoinResponse = joinResponse;
-
+            console.info("----------join-----------------");
+            console.info(joinResponse);
             this.subscriberPrimary = joinResponse.subscriberPrimary;
             if (!this.publisher) {
+                console.info("----------publisher-----------------");
                 this.configure(joinResponse);
             }
 
             // create offer
             if (!this.subscriberPrimary) {
+                console.info("----------subscriberPrimary-----------------");
                 this.negotiate();
             }
             this.clientConfiguration = joinResponse.clientConfiguration;
@@ -776,10 +779,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (this.url && this.token && isCloud(new URL(this.url))) {
             this.regionUrlProvider = new RegionUrlProvider(this.url, this.token);
         }
+        console.info("--------------clearReconnectTimeout-------------");
         this.reconnectTimeout = CriticalTimers.setTimeout(() => this.attemptReconnect(disconnectReason), delay);
     };
 
     private async attemptReconnect(reason?: ReconnectReason) {
+        console.info("-----------attemptReconnect------------");
         if (this._isClosed) {
             return;
         }
@@ -989,6 +994,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
                 }
                 , timeout ?? this.peerConnectionTimeout
             );
+            this.once(EngineEvent.Connected, onConnected);
         });
     }
 
@@ -1145,49 +1151,49 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return true;
     }
 
-    negotiate():Promise<void>{
+    negotiate(): Promise<void> {
         // observe signal state
-        return new Promise<void>((resolve,reject)=>{
-            if(!this.publisher){
+        return new Promise<void>((resolve, reject) => {
+            if (!this.publisher) {
                 reject(new NegotiationError('publisher is not defined'));
                 return;
             }
 
-            this.hasPublished=true;
+            this.hasPublished = true;
 
-            const handleClosed=()=>{
-              log.debug('engine disconnected while negotiation was ongoing');
-              cleanup();
-              resolve();
-              return;
+            const handleClosed = () => {
+                log.debug('engine disconnected while negotiation was ongoing');
+                cleanup();
+                resolve();
+                return;
             };
 
-            this.on(EngineEvent.Closing,handleClosed);
+            this.on(EngineEvent.Closing, handleClosed);
 
-            const negotiationTimeout=setTimeout(()=>{
+            const negotiationTimeout = setTimeout(() => {
                 reject('negotiation timed out');
-                this.handleDisconnect('negotiation',ReconnectReason.RR_SIGNAL_DISCONNECTED);
-            },this.peerConnectionTimeout);
+                this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
+            }, this.peerConnectionTimeout);
 
-            const cleanup=()=>{
-              clearTimeout(negotiationTimeout);
-              this.off(EngineEvent.Closing,handleClosed);
+            const cleanup = () => {
+                clearTimeout(negotiationTimeout);
+                this.off(EngineEvent.Closing, handleClosed);
             };
 
-            this.publisher.once(PCEvents.NegotiationStarted,()=>{
-               this.publisher?.once(PCEvents.NegotiationComplete,()=>{
-                   cleanup();
-                   resolve();
-               }) ;
+            this.publisher.once(PCEvents.NegotiationStarted, () => {
+                this.publisher?.once(PCEvents.NegotiationComplete, () => {
+                    cleanup();
+                    resolve();
+                });
             });
 
-            this.publisher.negotiate((e)=>{
+            this.publisher.negotiate((e) => {
                 cleanup();
                 reject(e);
-                if(e instanceof NegotiationError){
-                    this.fullReconnectOnNext=true;
+                if (e instanceof NegotiationError) {
+                    this.fullReconnectOnNext = true;
                 }
-                this.handleDisconnect('negotiation',ReconnectReason.RR_UNKNOWN);
+                this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
             });
         });
     }

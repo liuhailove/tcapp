@@ -455,3 +455,17 @@ export class Mutex {
     }
 
 }
+
+export function toWebsocketUrl(url: string): string {
+    if (url.startsWith('http')) {
+        return url.replace(/^(http)/, 'ws');
+    }
+    return url;
+}
+
+export function toHttpUrl(url: string): string {
+    if (url.startsWith('ws')) {
+        return url.replace(/^(ws)/, 'http');
+    }
+    return url;
+}

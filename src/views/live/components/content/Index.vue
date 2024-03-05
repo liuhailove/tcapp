@@ -1,284 +1,165 @@
 <template>
-  <div class="container">
-    <div class="row">
-      <div class="col-md-8">
-        <h2>Livekit Sample App</h2>
-        <br/>
-        <div id="connect-area">
-          <div>
-            <b>LiveKit URL</b>
-          </div>
-          <div>
-            <input type="text" class="form-control" id="url" value="ws://localhost:7880"/>
-          </div>
-          <div>
-            <b>Token</b>
-          </div>
-          <div>
-            <input type="text" class="form-control" id="token"/>
-          </div>
-          <div>
-            <b>E2EE key</b>
-          </div>
-          <div>
-            <input type="text" class="form-control" id="crypto-key"/>
-          </div>
-        </div>
-
-        <!-- connect options -->
-        <div id="options-area">
-          <div>
-            <input type="checkbox" class="form-check-input" id="publish-option" checked/>
-            <label for="publish-option" class="form-check-label"> Publish </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="simulcast" checked/>
-            <label for="simulcast" class="form-check-label"> Simulcast </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="dynacast" checked/>
-            <label for="dynacast" class="form-check-label"> Dynacast </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="adaptive-stream" checked/>
-            <label for="adaptive-stream" class="form-check-label"> AdaptiveStream </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="force-turn"/>
-            <label for="force-turn" class="form-check-label"> Force TURN </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="auto-subscribe" checked/>
-            <label for="auto-subscribe" class="form-check-label"> Auto Subscribe </label>
-          </div>
-          <div>
-            <input type="checkbox" class="form-check-input" id="e2ee"/>
-            <label for="e2ee" class="form-check-label"> E2E Encryption </label>
-          </div>
-          <div>
-            <select id="preferred-codec" class="custom-select" style="width: auto"></select>
-          </div>
-        </div>
-
-        <!-- actions -->
-        <div id="actions-area">
-          <div>
-            <button
-                id="connect-button"
-                class="btn btn-primary mt-1"
-                type="button"
-                onclick="appActions.connectWithFormInput()"
-            >
-              Connect
-            </button>
-          </div>
-          <div>
-            <button
-                id="toggle-audio-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.toggleAudio()"
-            >
-              Enable Mic
-            </button>
-            <button
-                id="toggle-video-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.toggleVideo()"
-            >
-              Enable Camera
-            </button>
-            <button
-                id="flip-video-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.flipVideo()"
-            >
-              Flip Camera
-            </button>
-            <button
-                id="share-screen-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.shareScreen()"
-            >
-              Share Screen
-            </button>
-            <button
-                id="toggle-e2ee-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.toggleE2EE()"
-            >
-              Enable E2EE
-            </button>
-            <button
-                id="e2ee-ratchet-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.ratchetE2EEKey()"
-            >
-              Ratchet Key
-            </button>
-            <select
-                id="simulate-scenario"
-                class="custom-select"
-                style="width: auto"
-                onchange="appActions.handleScenario(event)"
-            >
-              <option value="" selected>Simulate</option>
-              <option value="signal-reconnect">Signal reconnect</option>
-              <option value="full-reconnect">Full reconnect</option>
-              <option value="resume-reconnect">Resume reconnect</option>
-              <option value="disconnect-signal-on-resume">Signal disconnect on resume</option>
-              <option value="disconnect-signal-on-resume-no-messages">
-                Signal disconnect on resume no msgs
-              </option>
-              <option value="speaker">Speaker update</option>
-              <option value="node-failure">Node failure</option>
-              <option value="server-leave">Server booted</option>
-              <option value="migration">Migration</option>
-              <option value="force-tcp">Force TCP</option>
-              <option value="force-tls">Force TURN/TLS</option>
-              <option value="subscribe-all">Subscribe all</option>
-              <option value="unsubscribe-all">Unsubscribe all</option>
-            </select>
-            <button
-                id="disconnect-room-button"
-                class="btn btn-danger mt-1"
-                disabled
-                type="button"
-                onclick="appActions.disconnectRoom()"
-            >
-              Disconnect
-            </button>
-            <button
-                id="start-audio-button"
-                class="btn btn-secondary mt-1"
-                disabled
-                type="button"
-                onclick="appActions.startAudio()"
-            >
-              Start Audio
-            </button>
-            <select
-                id="preferred-quality"
-                class="custom-select"
-                style="width: auto"
-                onchange="appActions.handlePreferredQuality(event)"
-            >
-              <option value="" selected>PreferredQuality</option>
-              <option value="high">high</option>
-              <option value="medium">medium</option>
-              <option value="low">low</option>
-            </select>
-            <select
-                id="preferred-fps"
-                class="custom-select"
-                style="width: auto"
-                onchange="appActions.handlePreferredFPS(event)"
-            >
-              <option value="" selected>PreferredFPS</option>
-              <option value="30">30</option>
-              <option value="15">15</option>
-              <option value="8">8</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="inputs-area">
-          <div>
-            <select
-                id="video-input"
-                class="custom-select"
-                onchange="appActions.handleDeviceSelected(event)"
-            >
-              <option selected>Video Input (default)</option>
-            </select>
-          </div>
-          <div>
-            <select
-                id="audio-input"
-                class="custom-select"
-                onchange="appActions.handleDeviceSelected(event)"
-            >
-              <option selected>Audio Input (default)</option>
-            </select>
-          </div>
-          <div>
-            <select
-                id="audio-output"
-                class="custom-select"
-                onchange="appActions.handleDeviceSelected(event)"
-            >
-              <option selected>Audio Output (default)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <h3>Chat</h3>
-        <div id="chat-area">
-          <textarea class="form-control" id="chat" rows="9"></textarea>
-          <div id="chat-input-area">
-            <div>
-              <input
-                  type="text"
-                  class="form-control"
-                  id="entry"
-                  placeholder="Type your message here"
-              />
-            </div>
-            <div>
-              <button
-                  id="send-button"
-                  class="btn btn-primary"
-                  type="button"
-                  onclick="appActions.enterText()"
-                  disabled
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="screenshare-area">
-      <div>
-        <span id="screenshare-info"> </span>
-        <span id="screenshare-resolution"> </span>
-      </div>
-      <video id="screenshare-video" autoplay playsinline></video>
-    </div>
-
-    <div id="participants-area"></div>
-
-    <div id="log-area">
-      <textarea id="log"></textarea>
-    </div>
-  </div>
+  <van-barrage>
+    <div class="video" style="width: 100%; height: 400px"></div>
+  </van-barrage>
+  <van-space style="margin-top: 10px">
+    <van-button @click="myAppActions.connectWithFormInput()" type="primary" size="small"> 弹幕</van-button>
+  </van-space>
 </template>
 <script setup lang="ts">
-// import {appActions} from '@/views/live/components/api/app';
-//
-// export default {
-//   data() {
-//     return {
-//       appActions: appActions,
-//     };
-//   }
-// }
-//
-// // console.info(appActions);
-// // tcAppActions.connectWithFromInput();
+import {ScreenSharePresets, VideoCaptureOptions, VideoCodec, VideoPresets} from "@/components/live/room/track/options";
+import {LogLevel, setLogLevel} from "@/components/live/logger";
+import {RoomConnectOptions, RoomOptions} from "@/components/live/options";
+import Room from "@/components/live/room/Room";
+import {RoomEvent} from "@/components/live/room/LiveEvents";
+import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
+import {createAudioAnalyser} from "@/components/live/room/utils";
+import {MediaDeviceFailure} from "@/components/live/room/errors";
+import Participant, {ConnectionQuality} from "@/components/live/room/participant/Participant";
+import {Track} from "@/components/live/room/track/Track";
+import {DataPacket_Kind, VideoQuality} from "@/components/live/protocol/tc_models_pb";
+import {SimulateScenario} from "@/components/live/protocol/tc_rtc_pb";
+import {AccessToken} from "@/components/live/token/AccessToken";
+
+onMounted(() => {
+  // const url = "ws://localhost:7880";
+  // const t = new AccessToken("devkey", "secret", {
+  //   identity: 'me',
+  //   name: 'myname',
+  // });
+  // t.addGrant({
+  //   roomCreate: true,
+  //   roomJoin: true,
+  //   canPublish: true,
+  //   canSubscribe: true,
+  // });
+  // console.info("toJwt");
+  // console.info((t.toJwt()).toString());
+  // const token = (t.toJwt()).toString();
+  //
+  // // 房间配置
+  // const roomOpts: RoomOptions = {};
+  // // 链接配置
+  // const connectOpts: RoomConnectOptions = {};
+  // myAppActions.connectToRoom(url, token, roomOpts, connectOpts, true);
+  // console.info("connect succeed");
+})
+const myAppActions = {
+  connectWithFormInput: async (): Promise<Room | undefined> => {
+    const url = "ws://localhost:7880";
+    const t = new AccessToken("devkey", "secret", {
+      identity: 'me',
+      name: 'myname',
+    });
+    t.addGrant({
+      roomCreate: true,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+    });
+    console.info("toJwt");
+    const token =  (await (t.toJwt())).toString();
+    console.info(token);
+    // 房间配置
+    const roomOpts: RoomOptions = {};
+    // 链接配置
+    const connectOpts: RoomConnectOptions = {};
+    await myAppActions.connectToRoom(url, token, roomOpts, connectOpts, true);
+  },
+  connectToRoom: async (
+      url: string,
+      token: string,
+      roomOptions?: RoomOptions,
+      connectOptions?: RoomConnectOptions,
+      shouldPublish?: boolean,
+  ): Promise<Room | undefined> => {
+    // 根据房间参数创建房间
+    console.info("connectToRoom");
+    // 根据房间参数创建房间
+    const room = new Room(roomOptions);
+    // 记录房间的创建时间
+    let startTime = Date.now();
+    // 和Server进行交互
+    await room.prepareConnection(url);
+    const preWarmTime = Date.now() - startTime;
+    console.info("preWarmed connection in " + preWarmTime + " ms");
+    room.on(RoomEvent.ParticipantConnected, participantConnected)
+        .on(RoomEvent.Reconnecting, () => {
+          console.info('Reconnecting to Room');
+        })
+        .on(RoomEvent.Reconnected, async () => {
+          console.info("Successfully reconnected. server=" + (await room.engine.getConnectedServerAddress()));
+        })
+        .on(RoomEvent.SignalConnected, async () => {
+          const signalConnectionTime = Date.now() - startTime;
+          console.info(`signal connection established in ${signalConnectionTime} ms`);
+          if (shouldPublish) {
+            await room.localParticipant.enableCameraAndMicrophone();
+            console.info(`tracks published in ${Date.now() - startTime} ms`);
+          }
+        });
+    try {
+      // 链接到server
+      await room.connect(url, token, connectOptions);
+      const elapsed = Date.now() - startTime;
+      console.info(`successfully connected to ${room.name} in ${Math.round(elapsed)} ms,` + (await room.engine.getConnectedServerAddress()),);
+    } catch (error: any) {
+      let message: any = error;
+      if (error.message) {
+        message = error.message;
+      }
+      console.info('could not connect:' + message);
+      return;
+    }
+  },
+
+  toggleAudio: async () => {
+    console.info("toggleAudio");
+  },
+
+  toggleVideo: async () => {
+    console.info("toggleVideo");
+  },
+
+  flipVideo: () => {
+    console.info("flipVideo");
+  },
+
+  shareScreen: async () => {
+    console.info("shareScreen");
+  },
+
+  startAudio: () => {
+    console.info("startAudio");
+  },
+
+  enterText: () => {
+    console.info("enterText");
+  },
+
+  disconnectRoom: () => {
+    console.info("disconnectRoom");
+  },
+
+  handleScenario: (e: Event) => {
+    console.info("handleScenario");
+  },
+
+  handleDeviceSelected: async (e: Event) => {
+    console.info("handleDeviceSelected");
+  },
+
+  handlePreferredQuality: (e: Event) => {
+    console.info("handlePreferredQuality");
+  },
+
+  handlePreferredFPS: (e: Event) => {
+    console.info("handlePreferredFPS");
+  },
+}
+
+function participantConnected(participant: Participant) {
+  console.info('participantConnected, identity=' + participant.identity + ", connected=" + participant.metadata);
+}
 
 </script>

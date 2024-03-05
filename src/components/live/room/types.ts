@@ -37,3 +37,8 @@ export type SimulationScenario =
     | 'force-tcp'
     | 'force-tls'
     | 'full-reconnect';
+
+export type LoggerOptions = {
+    loggerName?: string;
+    loggerContextCb?: () => Record<string, unknown>;
+};

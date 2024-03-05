@@ -367,7 +367,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         log.debug(`connected to TCApp server ${Object.entries(serverInfo).map(([key, value]) => `${key}:${value}`).join(', ')}`,);
-
         if (!joinResponse.serverInfo) {
             throw new UnsupportedServer('unknown server version');
         }
@@ -401,10 +400,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         abortController: AbortController,
     ) => {
         if (this.state === ConnectionState.Reconnecting) {
+            console.info("-------------Reconnecting----------------");
             log.info('Reconnection attempt replaced by new connection attempt');
             // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
             this.recreateEngine();
         } else {
+            console.info("-------------maybeCreateEngine----------------");
             // create engine if previously disconnected
             this.maybeCreateEngine();
         }
@@ -435,6 +436,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             // forward metadata changed for the local participant
             this.setupLocalParticipantEvents();
             this.emit(RoomEvent.SignalConnected);
+            console.info("RoomEvent.SignalConnected");
         } catch (err) {
             this.recreateEngine();
             this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
@@ -466,6 +468,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
             throw e;
         }
+        console.info("-----------------------");
+        console.info("setAndEmitConnectionState");
 
         // also hook unload event
         if (isWeb() && this.options.disconnectOnPageLeave) {
