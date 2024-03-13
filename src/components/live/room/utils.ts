@@ -2,6 +2,12 @@
 import {ClientInfo, ClientInfo_SDK} from "@/components/live/protocol/tc_models_pb";
 import {protocolVersion, version} from "@/components/live/version";
 import {DetectableBrowser, getBrowser} from "@/components/live/utils/browserParser";
+import {VideoCodec, videoCodecs} from "@/components/live/room/track/options";
+import CriticalTimers from "@/components/live/room/timers";
+import {TCReactNativeInfo} from "@/components/live/room/types";
+import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
+import RemoteAudioTrack from "@/components/live/room/track/RemoteAudioTrack";
+import {getNewAudioContext} from "@/components/live/room/track/utils";
 
 const separator = '|';
 
@@ -16,8 +22,9 @@ export function unpackStreamId(packed: string): string[] {
     return [packed, ''];
 }
 
+
 export async function sleep(duration: number): Promise<void> {
-    return new Promise((resolve => setTimeout(resolve, duration)));
+    return new Promise<void>((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 export function supportsTransceiver() {
@@ -59,6 +66,18 @@ export function supportsVP9(): boolean {
         // 从技术上讲，FireFox 支持 VP9，但 SVC 发布已损坏
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
         return false;
+    }
+    if (isFireFox()) {
+        // technically speaking FireFox supports VP9, but SVC publishing is broken
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
+        return false;
+    }
+    if (isSafari()) {
+        const browser = getBrowser();
+        if (browser?.version && compareVersions(browser.version, '16') < 0) {
+            // Safari 16 and below does not support VP9
+            return false;
+        }
     }
     const capabilities = RTCRtpSender.getCapabilities('video');
     let hasVP9 = false;
@@ -128,6 +147,11 @@ export function isSafari(): boolean {
     return getBrowser()?.name === 'Safari';
 }
 
+export function isSafari17(): boolean {
+    const b = getBrowser();
+    return b?.name === 'Safari' && b.version.startsWith('17.');
+}
+
 export function isMobile(): boolean {
     if (!isWeb()) {
         return false;
@@ -148,7 +172,7 @@ export function isCloud(serverUrl: URL) {
     return serverUrl.hostname.endsWith(".tc.cloud");
 }
 
-function getTCReactNativeInfo(): TcReactNativeInfo | undefined {
+function getTCReactNativeInfo(): TCReactNativeInfo | undefined {
     // 仅为 React Native 定义的全局。
     // @ts-ignore
     if (global && global.TCReactNativeGlobal) {
@@ -454,6 +478,33 @@ export class Mutex {
         return willUnlock;
     }
 
+}
+
+export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
+    return videoCodecs.includes(maybeCodec as VideoCodec);
+}
+
+export function unwrapConstraint(constraint: ConstrainDOMString): string {
+    if (typeof constraint === 'string') {
+        return constraint;
+    }
+
+    if (Array.isArray(constraint)) {
+        return constraint[0];
+    }
+    if (constraint.exact) {
+        if (Array.isArray(constraint.exact)) {
+            return constraint.exact[0];
+        }
+        return constraint.exact;
+    }
+    if (constraint.ideal) {
+        if (Array.isArray(constraint.ideal)) {
+            return constraint.ideal[0];
+        }
+        return constraint.ideal;
+    }
+    throw Error('could not unwrap constraint');
 }
 
 export function toWebsocketUrl(url: string): string {

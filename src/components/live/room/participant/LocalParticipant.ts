@@ -8,14 +8,23 @@ import {
     trackPermissionToProto
 } from "@/components/live/room/participant/ParticipantTrackPermission";
 import {InternalRoomOptions} from "@/components/live/options";
-import {Future, isFireFox, isSafari, isSVCCodec, isWeb, supportsAV1, supportsVP9} from "@/components/live/room/utils";
+import {
+    Future,
+    isFireFox,
+    isSafari,
+    isSafari17,
+    isSVCCodec,
+    isWeb,
+    supportsAV1,
+    supportsVP9
+} from "@/components/live/room/utils";
 import {EngineEvent, ParticipantEvent, TrackEvent} from "@/components/live/room/LiveEvents";
 import log from "@/components/live/logger";
 import {
     AudioCaptureOptions,
     BackupVideoCodec,
-    CreateLocalTracksOptions, isBackupCodec,
-    isCodecEqual,
+    CreateLocalTracksOptions,
+    isBackupCodec,
     ScreenShareCaptureOptions,
     ScreenSharePresets,
     TrackPublishOptions,
@@ -23,34 +32,51 @@ import {
     VideoPresets
 } from "@/components/live/room/track/options";
 import {DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState} from "@/components/live/room/errors";
-import {constraintsForOptions, mergeDefaultOptions} from "@/components/live/room/track/utils";
+import {
+    constraintsForOptions,
+    getLogContextFromTrack,
+    mergeDefaultOptions,
+    mimeTypeToVideoCodecString,
+    screenCaptureToDisplayMediaStreamOptions
+} from "@/components/live/room/track/utils";
 import {
     computeTrackBackupEncodings,
     computeVideoEncodings,
-    mediaTrackLocalTrack
+    mediaTrackToLocalTrack,
 } from "@/components/live/room/participant/publishUtils";
 import LocalVideoTrack, {videoLayersFromEncodings} from "@/components/live/room/track/LocalVideoTrack";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import {
     AddTrackRequest,
-    DataChannelInfo,
-    SignalTarget, SubscribedQualityUpdate,
-    TrackPublishedResponse, TrackUnpublishedResponse
+    SimulcastCodec,
+    SubscribedQualityUpdate,
+    TrackUnpublishedResponse
 } from "@/components/live/protocol/tc_rtc_pb";
-import {DataPacket, DataPacket_Kind, ParticipantInfo} from "@/components/live/protocol/tc_models_pb";
+import {
+    DataPacket,
+    DataPacket_Kind,
+    Encryption_Type,
+    ParticipantInfo,
+    ParticipantPermission,
+    UserPacket
+} from "@/components/live/protocol/tc_models_pb";
 import {DataPublishOptions} from "@/components/live/room/types";
-import RemoteParticipant from "@/components/live/room/participant/RemoteParticipant";
+import {defaultVideoCodec} from "@/components/live/room/defaults";
+import {PCTransportState} from "@/components/live/room/PCTransportManager";
 
 
 export default class LocalParticipant extends Participant {
-    audioTracks: Map<string, LocalTrackPublication>;
+    audioTrackPublications: Map<string, LocalTrackPublication>;
 
-    videoTracks: Map<string, LocalTrackPublication>;
+    videoTrackPublications: Map<string, LocalTrackPublication>;
 
     /** map of track sid => all published tracks */
-    tracks: Map<string, LocalTrackPublication>;
+    trackPublications: Map<string, LocalTrackPublication>;
 
     engine: RTCEngine;
+
+    /** @internal */
+    activeDeviceMap: Map<MediaDeviceKind, string>;
 
     private pendingPublishing = new Set<Track.Source>();
 
@@ -67,16 +93,22 @@ export default class LocalParticipant extends Participant {
     // keep a pointer to room options
     private roomOptions: InternalRoomOptions;
 
+    private encryptionType: Encryption_Type = Encryption_Type.NONE;
+
     private reconnectFuture?: Future<void>;
 
     constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
-        super(sid, identity);
-        this.audioTracks = new Map<string, LocalTrackPublication>();
-        this.videoTracks = new Map<string, LocalTrackPublication>();
-        this.tracks = new Map<string, LocalTrackPublication>();
+        super(sid, identity, undefined, undefined, {
+            loggerName: options.loggerName,
+            loggerContextCb: () => this.engine.logContext,
+        });
+        this.audioTrackPublications = new Map<string, LocalTrackPublication>();
+        this.videoTrackPublications = new Map<string, LocalTrackPublication>();
+        this.trackPublications = new Map<string, LocalTrackPublication>();
         this.engine = engine;
         this.roomOptions = options;
         this.setupEngine(engine);
+        this.activeDeviceMap = new Map();
     }
 
     get lastCameraError(): Error | undefined {
@@ -87,15 +119,19 @@ export default class LocalParticipant extends Participant {
         return this.microphoneError;
     }
 
-    getTrack(source: Track.Source): LocalTrackPublication | undefined {
-        const track = super.getTrack(source);
+    get isE2EEEnabled(): boolean {
+        return this.encryptionType !== Encryption_Type.NONE;
+    }
+
+    getTrackPublication(source: Track.Source): LocalTrackPublication | undefined {
+        const track = super.getTrackPublication(source);
         if (track) {
             return track as LocalTrackPublication;
         }
     }
 
-    getTrackByName(name: string): LocalTrackPublication | undefined {
-        const track = super.getTrackByName(name);
+    getTrackPublicationByName(name: string): LocalTrackPublication | undefined {
+        const track = super.getTrackPublicationByName(name);
         if (track) {
             return track as LocalTrackPublication;
         }
@@ -103,8 +139,8 @@ export default class LocalParticipant extends Participant {
 
     setupEngine(engine: RTCEngine) {
         this.engine = engine;
-        this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
-            const pub = this.tracks.get(trackSid);
+        this.engine.on(EngineEvent.RemoteMute, (trackSid: string, muted: boolean) => {
+            const pub = this.trackPublications.get(trackSid);
             if (!pub || !pub.track) {
                 return;
             }
@@ -113,18 +149,18 @@ export default class LocalParticipant extends Participant {
             } else {
                 pub.unmute();
             }
-        };
-
-        this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
-
-        this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+        });
 
         this.engine
             .on(EngineEvent.Connected, this.handleReconnected)
-            .on(EngineEvent.Restarted, this.handleReconnected)
-            .on(EngineEvent.Resumed, this.handleReconnected)
+            .on(EngineEvent.SignalRestarted, this.handleReconnected)
+            .on(EngineEvent.SignalResumed, this.handleReconnected)
             .on(EngineEvent.Restarting, this.handleReconnecting)
             .on(EngineEvent.Resuming, this.handleReconnecting)
+            .on(EngineEvent.Restarted, this.handleReconnected)
+            .on(EngineEvent.Resumed, this.handleReconnected)
+            .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
+            .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
             .on(EngineEvent.Disconnected, this.handleDisconnected);
     }
 
@@ -142,7 +178,7 @@ export default class LocalParticipant extends Participant {
 
     private handleDisconnected = () => {
         if (this.reconnectFuture) {
-            this.reconnectFuture.promise.catch((e) => log.warn(e));
+            this.reconnectFuture.promise.catch((e) => this.log.warn(e.message, this.logContext));
             this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
             this.reconnectFuture = undefined;
         }
@@ -153,8 +189,7 @@ export default class LocalParticipant extends Participant {
      * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
      * @param metadata
      */
-    setMetadata(metadata: string) {
-        super.setMetadata(metadata);
+    _setMetadata(metadata: string) {
         this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
     }
 
@@ -164,7 +199,6 @@ export default class LocalParticipant extends Participant {
      * @param metadata
      */
     setName(name: string): void {
-        super.setName(name);
         this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
     }
 
@@ -208,6 +242,22 @@ export default class LocalParticipant extends Participant {
         return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
     }
 
+    /** @internal */
+    setPermissions(permissions: ParticipantPermission): boolean {
+        const prevPermissions = this.permissions;
+        const changed = super.setPermissions(permissions);
+        if (changed && prevPermissions) {
+            this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+        }
+        return changed;
+    }
+
+    /** @internal */
+    async setE2EEEnabled(enabled: boolean) {
+        this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
+        await this.republishAllTracks(undefined, false);
+    }
+
     /**
      * Enable or disable publishing for a track by source. This serves as a simple
      * way to manage the common tracks (camera, mic, or screen share).
@@ -238,15 +288,15 @@ export default class LocalParticipant extends Participant {
         options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
         publishOptions?: TrackPublishOptions,
     ) {
-        log.debug('setTrackEnabled', {source, enabled});
-        let track = this.getTrack(source);
+        this.log.debug('setTrackEnabled', {...this.logContext, source, enabled});
+        let track = this.getTrackPublication(source);
         if (enabled) {
             if (track) {
                 await track.unmute();
             } else {
                 let localTracks: Array<LocalTrack> | undefined;
                 if (this.pendingPublishing.has(source)) {
-                    log.info('skipping duplicate published source', {source});
+                    this.log.info('skipping duplicate published source', {...this.logContext, source});
                     // no-op it's already been requested
                     return;
                 }
@@ -273,7 +323,10 @@ export default class LocalParticipant extends Participant {
                     }
                     const publishPromises: Array<Promise<LocalTrackPublication>> = [];
                     for (const localTrack of localTracks) {
-                        log.info('publishing track', {localTrack});
+                        this.log.info('publishing track', {
+                            ...this.logContext,
+                            ...getLogContextFromTrack(localTrack),
+                        });
                         publishPromises.push(this.publishTrack(localTrack, publishOptions));
                     }
                     const publishedTracks = await Promise.all(publishPromises);
@@ -281,6 +334,9 @@ export default class LocalParticipant extends Participant {
                     // revisit if we want to return an array of tracks instead for v2
                     [track] = publishedTracks;
                 } catch (e) {
+                    localTracks?.forEach((tr) => {
+                        tr.stop();
+                    });
                     if (e instanceof Error && !(e instanceof TrackInvalidError)) {
                         this.emit(ParticipantEvent.MediaDevicesError, e);
                     }
@@ -293,7 +349,7 @@ export default class LocalParticipant extends Participant {
             // screenshare cannot be muted, unpublish instead
             if (source === Track.Source.ScreenShare) {
                 track = await this.unpublishTrack(track.track);
-                const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
+                const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
                 if (screenAudioTrack && screenAudioTrack.track) {
                     this.unpublishTrack(screenAudioTrack.track);
                 }
@@ -379,7 +435,10 @@ export default class LocalParticipant extends Participant {
             if (typeof conOrBool !== 'boolean') {
                 trackConstraints = conOrBool;
             }
-            const track = mediaTrackLocalTrack(mediaStreamTrack, trackConstraints);
+            const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
+                loggerName: this.roomOptions.loggerName,
+                loggerContextCb: () => this.logContext,
+            });
             if (track.kind === Track.Kind.Video) {
                 track.source = Track.Source.Camera;
             } else if (track.kind === Track.Kind.Audio) {
@@ -399,50 +458,40 @@ export default class LocalParticipant extends Participant {
         if (options === undefined) {
             options = {};
         }
-        if (options.resolution === undefined) {
-            options.resolution = ScreenSharePresets.h1080fps15.resolution;
-        }
-
-        let videoConstraints: MediaTrackConstraints | boolean = true;
-        if (options.resolution) {
-            if (isSafari()) {
-                videoConstraints = {
-                    width: {max: options.resolution.width},
-                    height: {max: options.resolution.height},
-                    frameRate: options.resolution.frameRate,
-                };
-            } else {
-                videoConstraints = {
-                    width: {ideal: options.resolution.width},
-                    height: {ideal: options.resolution.height},
-                    frameRate: options.resolution.frameRate,
-                };
-            }
-        }
-
         if (navigator.mediaDevices.getDisplayMedia === undefined) {
             throw new DeviceUnsupportedError('getDisplayMedia not supported');
         }
 
-        const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: options.audio ?? false,
-            video: videoConstraints,
-            // @ts-expect-error support for experimental display media features
-            control: options.controller,
-            selfBrowserSurface: options.selfBrowserSurface,
-            surfaceSwitching: options.surfaceSwitching,
-            systemAudio: options.systemAudio,
-        });
+
+        if (options.resolution === undefined && !isSafari17()) {
+            // we need to constrain the dimensions, otherwise it could lead to low bitrate
+            // due to encoding a huge video. Encoding such large surfaces is really expensive
+            // unfortunately Safari 17 has a bug and cannot be constrained by default
+            options.resolution = ScreenSharePresets.h1080fps30.resolution;
+        }
+
+        const constraints = screenCaptureToDisplayMediaStreamOptions(options)
+        const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
         const tracks = stream.getVideoTracks();
         if (tracks.length == 0) {
             throw new TrackInvalidError('no video track found');
         }
-        const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
+        const screenVideo = new LocalVideoTrack(tracks[0], undefined, false, {
+            loggerName: this.roomOptions.loggerName,
+            loggerContextCb: () => this.logContext,
+        });
         screenVideo.source = Track.Source.ScreenShare;
-        const localTracks: Array<LocalVideoTrack> = [screenVideo];
+        if (options.contentHint) {
+            screenVideo.mediaStreamTrack.contentHint = options.contentHint;
+        }
+
+        const localTracks: Array<LocalTrack> = [screenVideo];
         if (stream.getAudioTracks().length > 0) {
-            const screenAudio = new LocalVideoTrack(stream.getAudioTracks()[0], undefined, false);
+            this.emit(ParticipantEvent.AudioStreamAcquired);
+            const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false, this.audioContext,
+                {loggerName: this.roomOptions.loggerName, loggerContextCb: () => this.logContext},
+            );
             screenAudio.source = Track.Source.ScreenShareAudio;
             localTracks.push(screenAudio);
         }
@@ -458,27 +507,68 @@ export default class LocalParticipant extends Participant {
         track: LocalTrack | MediaStreamTrack,
         options?: TrackPublishOptions,
     ): Promise<LocalTrackPublication> {
+        if (track instanceof LocalAudioTrack) {
+            track.setAudioContext(this.audioContext);
+        }
+
         await this.reconnectFuture?.promise;
         if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
             await this.pendingPublishPromises.get(track);
         }
+        let defaultConstraints: MediaTrackConstraints | undefined;
+        if (track instanceof MediaStreamTrack) {
+            defaultConstraints = track.getConstraints();
+        } else {
+            // we want to access constraints directly as `track.mediaStreamTrack`
+            // might be pointing to a non-device track (e.g. processed track) already
+            defaultConstraints = track.constraints;
+            let deviceKind: MediaDeviceKind | undefined = undefined;
+            switch (track.source) {
+                case Track.Source.Microphone:
+                    deviceKind = 'audioinput';
+                    break;
+                case Track.Source.Camera:
+                    deviceKind = 'videoinput';
+                    break;
+                default:
+                    break;
+            }
+            if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+                defaultConstraints = {
+                    ...defaultConstraints,
+                    deviceId: this.activeDeviceMap.get(deviceKind),
+                };
+            }
+        }
+
         // convert raw media track into audio or video track
         if (track instanceof MediaStreamTrack) {
             switch (track.kind) {
                 case 'audio':
-                    track = new LocalAudioTrack(track, undefined, true);
+                    track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext, {
+                        loggerName: this.roomOptions.loggerName,
+                        loggerContextCb: () => this.logContext,
+                    });
                     break;
                 case 'video':
-                    track = new LocalVideoTrack(track, undefined, true);
+                    track = new LocalVideoTrack(track, defaultConstraints, true, {
+                        loggerName: this.roomOptions.loggerName,
+                        loggerContextCb: () => this.logContext,
+                    });
                     break;
                 default:
                     throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
             }
+        } else {
+            track.updateLoggerOptions({
+                loggerName: this.roomOptions.loggerName,
+                loggerContextCb: () => this.logContext,
+            })
         }
 
         // is it already published? if so skip
         let existingPublication: LocalTrackPublication | undefined;
-        this.tracks.forEach((publication) => {
+        this.trackPublications.forEach((publication) => {
             if (!publication.track) {
                 return;
             }
@@ -488,16 +578,21 @@ export default class LocalParticipant extends Participant {
         });
 
         if (existingPublication) {
-            log.warn('track has already been published, skipping');
+            this.log.warn('track has already been published, skipping', {
+                ...this.logContext,
+                ...getLogContextFromTrack(existingPublication),
+            });
             return existingPublication;
         }
 
-        const isStereo = options?.forceStereo ||
+        const isStereoInput = options?.forceStereo ||
             ('channelCount' in track.mediaStreamTrack.getSettings() &&
                 // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
                 track.mediaStreamTrack.getSettings().channelCount === 2
             ) ||
             track.mediaStreamTrack.getConstraints().channelCount === 2;
+
+        const isStereo = options?.forceStereo ?? isStereoInput;
 
         // disable dtx for stereo track if not enabled explicitly
         if (isStereo) {
@@ -505,10 +600,18 @@ export default class LocalParticipant extends Participant {
                 options = {};
             }
             if (options.dtx === undefined) {
-                log.info(`Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`);
+                this.log.info(
+                    `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+                    {
+                        ...this.logContext,
+                        ...getLogContextFromTrack(track),
+                    },
+                );
             }
             if (options.red === undefined) {
-                log.info(`Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`);
+                this.log.info(
+                    `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+                );
             }
             options.dtx ??= false;
             options.red ??= false;
@@ -518,14 +621,27 @@ export default class LocalParticipant extends Participant {
             ...options,
         };
 
+        // disable simulcast if e2ee is set on safari
+        if (isSafari() && this.roomOptions.e2ee) {
+            this.log.info(
+                `End-to-end encryption is set up, simulcast publishing will be disabled on Safari`,
+                {
+                    ...this.logContext,
+                },
+            );
+            opts.simulcast = false;
+        }
+
+
         if (opts.source) {
             track.source = opts.source;
         }
-        const publishPromise = this.publish(track, opts, options, isStereo);
+
+
+        const publishPromise = this.publish(track, opts, isStereo);
         this.pendingPublishPromises.set(track, publishPromise);
         try {
-            const publication = await publishPromise;
-            return publication;
+            return await publishPromise;
         } catch (e) {
             throw e;
         } finally {
@@ -533,28 +649,15 @@ export default class LocalParticipant extends Participant {
         }
     }
 
-    private async publish(
-        track: LocalTrack,
-        opts: TrackPublishOptions,
-        options: TrackPublishOptions | undefined,
-        isStereo: boolean,
-    ) {
-        const existingTrackOfSource = Array.from(this.tracks.values()).find(
+    private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+        const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
             (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
         );
         if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
-            try {
-                // throw an Error in order to capture the stack trace
-                throw Error(`publishing a second track with the same source: ${track.source}`);
-            } catch (e: unknown) {
-                if (e instanceof Error) {
-                    log.warn(e.message, {
-                        oldTrack: existingTrackOfSource,
-                        newTrack: track,
-                        trace: e.stack,
-                    });
-                }
-            }
+            this.log.info(`publishing a second track with the same source: ${track.source}`, {
+                ...this.logContext,
+                ...getLogContextFromTrack(track),
+            });
         }
         if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
             track.stopOnMute = true;
@@ -574,6 +677,8 @@ export default class LocalParticipant extends Participant {
             opts.videoCodec = undefined;
         }
 
+        const videoCodec = opts.videoCodec;
+
         // handle track actions
         track.on(TrackEvent.Muted, this.onTrackMuted);
         track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
@@ -582,21 +687,23 @@ export default class LocalParticipant extends Participant {
         track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
         // create track publication from track
-        const req = AddTrackRequest.fromJson({
+        const req = new AddTrackRequest({
             // get local track id for use during publishing
             cid: track.mediaStreamTrack.id,
-            name: options?.name,
-            type: Track.kindFromProto(track.kind),
+            name: opts.name,
+            type: Track.kindToProto(track.kind),
             muted: track.isMuted,
             source: Track.sourceToProto(track.source),
             disableDtx: !(opts.dtx ?? true),
+            encryption: this.encryptionType,
             stereo: isStereo,
-            disableRed: !(opts.red ?? true),
+            disableRed: this.isE2EEEnabled || !(opts.red ?? true),
+            stream: opts?.stream,
         });
 
         // compute encodings and layers for video
         let encodings: RTCRtpEncodingParameters[] | undefined;
-        let simEncodings: RTCRtpEncodingParameters[] | undefined;
+        // let simEncodings: RTCRtpEncodingParameters[] | undefined;
         if (track.kind === Track.Kind.Video) {
             let dims: Track.Dimensions = {
                 width: 0,
@@ -613,47 +720,53 @@ export default class LocalParticipant extends Participant {
                     height: defaultRes.height,
                 };
                 // log failure
-                log.error('could not determine track dimensions, using defaults', dims);
+                this.log.error('could not determine track dimensions, using defaults', {
+                    ...this.logContext,
+                    ...getLogContextFromTrack(track),
+                    dims,
+                });
             }
             // width and height should be defined for video
             req.width = dims.width;
             req.height = dims.height;
             // for svc codecs, disable simulcast and use vp8 for backup codec
             if (track instanceof LocalVideoTrack) {
-                if (isSVCCodec(opts.videoCodec)) {
+                if (isSVCCodec(videoCodec)) {
+                    // vp9 svc with screenshare has problem to encode, always use L1T3 here
+                    if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
+                        opts.scalabilityMode = 'L1T3';
+                    }
                     // set scalabilityMode to 'L3T3_KEY' by default
                     opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
                 }
 
+                req.simulcastCodecs = [
+                    new SimulcastCodec({
+                        codec: videoCodec,
+                        cid: track.mediaStreamTrack.id,
+                    }),
+                ];
 
                 // set up backup
-                if (opts.videoCodec && options.backupCodec && opts.videoCodec !== opts.backupCodec.codec) {
-                    const simOpts = {...opts};
-                    simOpts.simulcast = true;
-                    simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
-
-                    req.simulcastCodecs = [
-                        {
-                            codec: opts.videoCodec,
-                            cid: track.mediaStreamTrack.id,
-                            enableSimulcastLayers: true,
-                        },
-                        {
+                if (opts.backupCodec === true) {
+                    opts.backupCodec = {codec: defaultVideoCodec};
+                }
+                if (
+                    opts.backupCodec &&
+                    videoCodec !== opts.backupCodec.codec &&
+                    // TODO remove this once e2ee is supported for backup codecs
+                    req.encryption === Encryption_Type.NONE
+                ) {
+                    // multi-codec simulcast requires dynacast
+                    if (!this.roomOptions.dynacast) {
+                        this.roomOptions.dynacast = true;
+                    }
+                    req.simulcastCodecs.push(
+                        new SimulcastCodec({
                             codec: opts.backupCodec.codec,
                             cid: '',
-                            enableSimulcastLayers: true,
-                        },
-                    ];
-                } else if (opts.videoCodec) {
-                    // pass codec info to sfu so it can prefer codec for the client which don't support
-                    // setCodecPreferences
-                    req.simulcastCodecs = [
-                        {
-                            codec: opts.videoCodec,
-                            cid: track.mediaStreamTrack.id,
-                            enableSimulcastLayers: opts.simulcast ?? false,
-                        },
-                    ];
+                        })
+                    );
                 }
             }
 
@@ -661,8 +774,7 @@ export default class LocalParticipant extends Participant {
                 track.source === Track.Source.ScreenShare,
                 dims.width,
                 dims.height,
-                encodings,
-                isSVCCodec(opts.videoCodec),
+                opts,
             );
             req.layers = videoLayersFromEncodings(
                 req.width,
@@ -685,50 +797,84 @@ export default class LocalParticipant extends Participant {
         }
 
         const ti = await this.engine.addTrack(req);
-        let primaryCodecSupported = false;
-        let backupCodecSupported = false;
-        ti.codecs.forEach((c) => {
-            if (isCodecEqual(c.mimeType, opts.videoCodec)) {
-                primaryCodecSupported = true;
-            } else if (opts.backupCodec && isCodecEqual(c.mimeType, opts.backupCodec.codec)) {
-                backupCodecSupported = true;
+        // server might not support the codec the client has requested, in that case, fallback
+        // to a supported codec
+        let primaryCodecMime: string | undefined;
+        ti.codecs.forEach((codec) => {
+            if (primaryCodecMime === undefined) {
+                primaryCodecMime = codec.mimeType;
             }
         });
+        if (primaryCodecMime && track.kind === Track.Kind.Video) {
+            const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+            if (updatedCodec !== videoCodec) {
+                this.log.debug('falling back to server selected codec', {
+                    ...this.logContext,
+                    ...getLogContextFromTrack(track),
+                    codec: updatedCodec,
+                });
+                /* @ts-ignore */
+                opts.videoCodec = updatedCodec;
 
-        if (req.simulcastCodecs.length > 0) {
-            if (!primaryCodecSupported && !backupCodecSupported) {
-                throw Error('cannot publish track, codec not supported by server');
-            }
-
-
-            if (!primaryCodecSupported && opts.backupCodec) {
-                const backupCodec = opts.backupCodec;
-                opts = {...opts};
-                log.debug(`primary codec ${opts.videoCodec} not supported, fallback to ${backupCodec.codec}`);
-                opts.videoCodec = backupCodec.codec;
-                opts.videoEncoding = backupCodec.encoding;
-                encodings = simEncodings;
+                // recompute encodings since bitrates/etc could have changed
+                encodings = computeVideoEncodings(
+                    track.source === Track.Source.ScreenShare,
+                    req.width,
+                    req.height,
+                    opts,
+                );
             }
         }
-        const publication = new LocalTrackPublication(track.kind, ti, track);
+        const publication = new LocalTrackPublication(track.kind, ti, track, {
+            loggerName: this.roomOptions.loggerName,
+            loggerContextCb: () => this.logContext,
+        });
         // save options for when it needs to be republished again
         publication.options = opts;
         track.sid = ti.sid;
 
-        if (!this.engine.publisher) {
+        if (!this.engine.pcManager) {
             throw new UnexpectedConnectionState('publisher is closed');
         }
-        log.debug(`publishing ${track.kind} with encodings`, {encodings, trackInfo: ti});
+        this.log.debug(`publishing ${track.kind} with encodings`, {
+            ...this.logContext,
+            encodings,
+            trackInfo: ti,
+        });
 
         // store RTPSender
         track.sender = await this.engine.createSender(track, opts, encodings);
 
-        if (track.codec && isSVCCodec(track.codec.toString()) && encodings && encodings[0]?.maxBitrate) {
-            this.engine.publisher.setTrackCodecBitrate(
-                req.cid,
-                track.codec.toString(),
-                encodings[0].maxBitrate / 1000,
-            );
+        if (encodings) {
+            if (isFireFox() && track.kind === Track.Kind.Audio) {
+                /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+                   livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
+                   publish high quality audio track. But firefox always uses this value as the actual
+                   bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+                   So the client need to modify maxaverragebitrates in answer sdp to user provided value to
+                   fix the issue.
+                 */
+                let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+                for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+                    if (transceiver.sender === track.sender) {
+                        trackTransceiver = transceiver;
+                        break;
+                    }
+                }
+                if (trackTransceiver) {
+                    this.engine.pcManager.publisher.setTrackCodecBitrate({
+                        transceiver: trackTransceiver,
+                        codec: 'opus',
+                        maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0
+                    });
+                }
+            } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+                this.engine.pcManager.publisher.setTrackCodecBitrate({
+                    codec: track.codec,
+                    maxbr: encodings[0].maxBitrate / 1000,
+                    cid: req.cid,
+                });
+            }
         }
 
         this.engine.negotiate();
@@ -753,14 +899,18 @@ export default class LocalParticipant extends Participant {
     /** @internal
      * publish additional codec to existing track
      */
-    async publishAdditionalCodecForTrack(
-        track: LocalTrack | MediaStreamTrack,
-        videoCodec: BackupVideoCodec,
-        options?: TrackPublishOptions,
+    async publishAdditionalCodecForTrack(track: LocalTrack | MediaStreamTrack,
+                                         videoCodec: BackupVideoCodec,
+                                         options ?: TrackPublishOptions,
     ) {
+        // TODO remove once e2ee is supported for backup tracks
+        if (this.encryptionType !== Encryption_Type.NONE) {
+            return;
+        }
+
         // is it not published? if so skip
         let existingPublication: LocalTrackPublication | undefined;
-        this.tracks.forEach((publication) => {
+        this.trackPublications.forEach((publication) => {
             if (!publication.track) {
                 return;
             }
@@ -783,12 +933,21 @@ export default class LocalParticipant extends Participant {
 
         const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
         if (!encodings) {
-            log.info(`backup codec has been disabled, ignoring request to add additional codec for track`);
+            this.log.info(
+                `backup codec has been disabled, ignoring request to add additional codec for track`,
+                {
+                    ...this.logContext,
+                    ...getLogContextFromTrack(track),
+                },
+            );
             return;
         }
 
         const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
-        const req = AddTrackRequest.fromJson({
+        if (!simulcastTrack) {
+            return;
+        }
+        const req = new AddTrackRequest({
             cid: simulcastTrack.mediaStreamTrack.id,
             type: Track.kindToProto(track.kind),
             muted: track.isMuted,
@@ -798,7 +957,6 @@ export default class LocalParticipant extends Participant {
                 {
                     codec: opts.videoCodec,
                     cid: simulcastTrack.mediaStreamTrack.id,
-                    enableSimulcastLayers: opts.simulcast,
                 },
             ],
         });
@@ -817,25 +975,31 @@ export default class LocalParticipant extends Participant {
         await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
         this.engine.negotiate();
-        log.debug(`published ${videoCodec} for track ${track.sid}`, {encodings, trackInfo: ti});
+        this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
+            ...this.logContext,
+            encodings,
+            trackInfo: ti,
+        });
     }
 
     async unpublishTrack(
         track: LocalTrack | MediaStreamTrack,
-        stopOnUnpublish?: boolean
+        stopOnUnpublish ?: boolean
     ): Promise<LocalTrackPublication | undefined> {
         // look through all published tracks to find the right ones
         const publication = this.getPublicationForTrack(track);
 
-        log.debug('unpublising track', {track, method: 'unpublishTrack',});
+        const pubLogContext = publication ? getLogContextFromTrack(publication) : undefined;
 
+        this.log.debug('unpublishing track', {
+            ...this.logContext,
+            ...pubLogContext,
+        });
         if (!publication || !publication.track) {
-            log.warn('track was not unpublished because no publication was found',
-                {
-                    track,
-                    method: 'unpublishTrack',
-                }
-            );
+            this.log.warn('track was not unpublished because no publication was found', {
+                ...this.logContext,
+                ...pubLogContext,
+            });
             return undefined;
         }
 
@@ -858,12 +1022,12 @@ export default class LocalParticipant extends Participant {
         track.sender = undefined;
 
         if (
-            this.engine.publisher &&
-            this.engine.publisher.pc.connectionState !== 'closed' &&
+            this.engine.pcManager &&
+            this.engine.pcManager.currentState < PCTransportState.FAILED &&
             trackSender
         ) {
             try {
-                for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+                for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
                     // if sender is not currently sending (after replaceTrack(null))
                     // removeTrack would have no effect.
                     // to ensure we end up successfully removing the track, manually set
@@ -888,18 +1052,22 @@ export default class LocalParticipant extends Participant {
                     track.simulcastCodecs.clear();
                 }
             } catch (e) {
-                log.warn('failed to unpublish track', {error: e, method: 'unpublishTrack'});
+                this.log.warn('failed to unpublish track', {
+                    ...this.logContext,
+                    ...pubLogContext,
+                    error: e,
+                });
             }
         }
 
         // remove from our maps
-        this.tracks.delete(publication.trackSid);
+        this.trackPublications.delete(publication.trackSid);
         switch (publication.kind) {
             case Track.Kind.Audio:
-                this.audioTracks.delete(publication.trackSid);
+                this.audioTrackPublications.delete(publication.trackSid);
                 break;
             case Track.Kind.Video:
-                this.videoTracks.delete(publication.trackSid);
+                this.videoTrackPublications.delete(publication.trackSid);
                 break;
             default:
                 break;
@@ -923,9 +1091,9 @@ export default class LocalParticipant extends Participant {
         ) as LocalTrackPublication[];
     }
 
-    async republishAllTracks(options?: TrackPublishOptions) {
+    async republishAllTracks(options ?: TrackPublishOptions, restartTracks: boolean = true) {
         const localPubs: LocalTrackPublication[] = [];
-        this.tracks.forEach((pub) => {
+        this.trackPublications.forEach((pub) => {
             if (pub.track) {
                 if (options) {
                     pub.options = {...pub.options, ...options};
@@ -938,6 +1106,22 @@ export default class LocalParticipant extends Participant {
             localPubs.map(async (pub) => {
                 const track = pub.track!;
                 await this.unpublishTrack(track, false);
+                if (
+                    restartTracks &&
+                    !track.isMuted &&
+                    track.source !== Track.Source.ScreenShare &&
+                    track.source != Track.Source.ScreenShareAudio &&
+                    (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+                    !track.isUserProvided
+                ) {
+                    // generally we need to restart the track before publishing, often a full reconnect
+                    // is necessary because computer had gone to sleep.
+                    this.log.debug('restarting existing track', {
+                        ...this.logContext,
+                        track: pub.trackSid,
+                    });
+                    await track.restartTrack();
+                }
                 await this.publishTrack(track, pub.options);
             }),
         );
@@ -948,68 +1132,25 @@ export default class LocalParticipant extends Participant {
      * participant in the room if the destination field in publishOptions is empty
      *
      * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-     * @param kind whether to send this as reliable or lossy.
-     * For data that you need delivery guarantee (such as chat messages), use Reliable.
-     * For data that should arrive as quickly as possible, but you are ok with dropped
-     * packets, use Lossy.
-     * @param publishOptions optionally specify a `topic` and `destination`
+     * @param options optionally specify a `reliable`, `topic` and `destination`
      */
-    async publishData(
-        data: Uint8Array,
-        kind: DataPacket_Kind,
-        publishOptions?: DataPublishOptions,
-    ): Promise<void>;
-    /**
-     * Publish a new data payload to the room. Data will be forwarded to each
-     * participant in the room if the destination argument is empty
-     *
-     * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-     * @param kind whether to send this as reliable or lossy.
-     * For data that you need delivery guarantee (such as chat messages), use Reliable.
-     * For data that should arrive as quickly as possible, but you are ok with dropped
-     * packets, use Lossy.
-     * @param destination the participants who will receive the message
-     */
-    async publishData(
-        data: Uint8Array,
-        kind: DataPacket_Kind,
-        destination?: RemoteParticipant[] | string[],
-    ): Promise<void>;
+    async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
+        const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
+        const destinationIdentities = options.destinationIdentities;
+        const topic = options.topic;
 
-    async publishData(
-        data: Uint8Array,
-        kind: DataPacket_Kind,
-        publishOptions: DataPublishOptions | RemoteParticipant[] | string[] = {},
-    ) {
-        const destination = Array.isArray(publishOptions)
-            ? publishOptions
-            : publishOptions?.destination;
-        const destinationSids: string[] = [];
-
-        const topic = !Array.isArray(publishOptions) ? publishOptions.topic : undefined;
-
-        if (destination !== undefined) {
-            destination.forEach((val: any) => {
-                if (val instanceof RemoteParticipant) {
-                    destinationSids.push(val.sid);
-                } else {
-                    destinationSids.push(val);
-                }
-            });
-        }
-
-        const packet: DataPacket = {
-            kind,
+        const packet = new DataPacket({
+            kind: kind,
             value: {
                 case: 'user',
-                user: {
-                    participantSid: this.sid,
+                value: new UserPacket({
+                    participantIdentity: this.identity,
                     payload: data,
-                    destinationSids: destinationSids,
+                    destinationIdentities,
                     topic,
-                },
+                }),
             },
-        };
+        });
 
         await this.engine.sendDataPacket(packet, kind);
     }
@@ -1031,13 +1172,12 @@ export default class LocalParticipant extends Participant {
      * @param participantTrackPermissions Full list of individual permissions per
      *  participant/track. Any omitted participants will not receive any permissions.
      */
-    setTrackSubscriptionPermissions(
-        allParticipantsAllowed: boolean,
-        participantTrackPermissions: ParticipantTrackPermission[] = [],
+    setTrackSubscriptionPermissions(allParticipantsAllowed: boolean,
+                                    participantTrackPermissions: ParticipantTrackPermission[] = [],
     ) {
         this.participantTrackPermissions = participantTrackPermissions;
         this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
-        if (this.engine.client.isConnected) {
+        if (!this.engine.client.isDisconnected) {
             this.updateTrackSubscriptionPermissions();
         }
     }
@@ -1056,14 +1196,15 @@ export default class LocalParticipant extends Participant {
         // if server's track mute status doesn't match actual, we'll have to update
         // the server's copy
         info.tracks.forEach((ti) => {
-            const pub = this.tracks.get(ti.sid);
+            const pub = this.trackPublications.get(ti.sid);
 
             if (pub) {
                 const mutedOnServer = pub.isMuted || (pub.track?.isUpstreamPaused ?? false);
                 if (mutedOnServer !== ti.muted) {
-                    log.debug('updating server state after reconcile', {
-                        sid: ti.sid,
-                        muted: mutedOnServer,
+                    this.log.debug('updating server mute state after reconcile', {
+                        ...this.logContext,
+                        ...getLogContextFromTrack(pub),
+                        mutedOnServer,
                     });
                     this.engine.client.sendMuteTrack(ti.sid, mutedOnServer);
                 }
@@ -1073,7 +1214,8 @@ export default class LocalParticipant extends Participant {
     }
 
     private updateTrackSubscriptionPermissions = () => {
-        log.debug('updating track subscription permissions', {
+        this.log.debug('updating track subscription permissions', {
+            ...this.logContext,
             allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
             participantTrackPermissions: this.participantTrackPermissions,
         });
@@ -1102,12 +1244,18 @@ export default class LocalParticipant extends Participant {
     };
 
     private onTrackUpstreamPaused = (track: LocalTrack) => {
-        log.debug('upstream paused');
+        this.log.debug('upstream paused', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+        });
         this.onTrackMuted(track, true);
     };
 
     private onTrackUpstreamResumed = (track: LocalTrack) => {
-        log.debug('upstream resumed');
+        this.log.debug('upstream resumed', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+        });
         this.onTrackMuted(track, track.isMuted);
     };
 
@@ -1115,11 +1263,11 @@ export default class LocalParticipant extends Participant {
         if (!this.roomOptions?.dynacast) {
             return;
         }
-        const pub = this.videoTracks.get(update.trackSid);
+        const pub = this.videoTrackPublications.get(update.trackSid);
         if (!pub) {
-            log.warn('received subscribed quality update for unknown track', {
-                method: 'handleSubscribedQualityUpdate',
-                sid: update.trackSid,
+            this.log.warn('received subscribed quality update for unknown track', {
+                ...this.logContext,
+                trackSid: update.trackSid,
             });
             return;
         }
@@ -1130,7 +1278,10 @@ export default class LocalParticipant extends Participant {
             const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
             for await (const codec of newCodecs) {
                 if (isBackupCodec(codec)) {
-                    log.debug(`publish ${codec} for ${pub.videoTrack.sid}`);
+                    this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, {
+                        ...this.logContext,
+                        ...getLogContextFromTrack(pub),
+                    });
                     await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
                 }
             }
@@ -1140,10 +1291,10 @@ export default class LocalParticipant extends Participant {
     };
 
     private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
-        const track = this.tracks.get(unpublished.trackSid);
+        const track = this.trackPublications.get(unpublished.trackSid);
         if (!track) {
-            log.warn('received unpublished event for unknown track', {
-                method: 'handleLocalTrackUnpublished',
+            this.log.warn('received unpublished event for unknown track', {
+                ...this.logContext,
                 trackSid: unpublished.trackSid,
             });
             this.unpublishTrack(track.track!);
@@ -1154,8 +1305,9 @@ export default class LocalParticipant extends Participant {
         if (track.source === Track.Source.ScreenShare ||
             track.source === Track.Source.ScreenShareAudio
         ) {
-            log.debug('unpublishing local track due to TrackEnded', {
-                track: track.sid,
+            this.log.debug('unpublishing local track due to TrackEnded', {
+                ...this.logContext,
+                ...getLogContextFromTrack(track),
             });
             this.unpublishTrack(track);
         } else if (track.isUserProvided) {
@@ -1164,22 +1316,25 @@ export default class LocalParticipant extends Participant {
             try {
                 if (isWeb()) {
                     try {
-                        const currentPermissions=await navigator?.permissions.query({
+                        const currentPermissions = await navigator?.permissions.query({
                             // the permission query for camera and microphone currently not supported in Safari and Firefox
                             // @ts-ignore
-                            name:track.source===Track.Source.Camera?'camera':'microphone',
+                            name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
                         });
-                        if(currentPermissions && currentPermissions.state==='denied'){
-                            log.warn(`user has revoked access to ${track.source}`);
+                        if (currentPermissions && currentPermissions.state === 'denied') {
+                            this.log.warn(`user has revoked access to ${track.source}`, {
+                                ...this.logContext,
+                                ...getLogContextFromTrack(track),
+                            });
 
                             // detect granted change after permissions were denied to try and resume then
-                            currentPermissions.onchange=()=>{
-                              if(currentPermissions.state!=='denied'){
-                                  if(!track.isMuted){
-                                      track.restartTrack();
-                                  }
-                                  currentPermissions.onchange=null;
-                              }
+                            currentPermissions.onchange = () => {
+                                if (currentPermissions.state !== 'denied') {
+                                    if (!track.isMuted) {
+                                        track.restartTrack();
+                                    }
+                                    currentPermissions.onchange = null;
+                                }
                             };
                             throw new Error('GetUserMedia Permission denied');
                         }
@@ -1187,8 +1342,11 @@ export default class LocalParticipant extends Participant {
                         // permissions query fails for firefox, we continue and try to restart the track
                     }
                 }
-                if(!track.isMuted){
-                    log.debug('track ended, attempting to use a different device');
+                if (!track.isMuted) {
+                    this.log.debug('track ended, attempting to use a different device', {
+                        ...this.logContext,
+                        ...getLogContextFromTrack(track),
+                    });
                     await track.restartTrack();
                 }
             } catch (e: any) {
@@ -1200,10 +1358,9 @@ export default class LocalParticipant extends Participant {
 
 
     private getPublicationForTrack(
-        track: LocalTrack | MediaStreamTrack,
-    ): LocalTrackPublication | undefined {
+        track: LocalTrack | MediaStreamTrack,): LocalTrackPublication | undefined {
         let publication: LocalTrackPublication | undefined;
-        this.tracks.forEach((pub) => {
+        this.trackPublications.forEach((pub) => {
             const localTrack = pub.track;
             if (!localTrack) {
                 return;
@@ -1215,49 +1372,53 @@ export default class LocalParticipant extends Participant {
                     if (localTrack.mediaStreamTrack === track) {
                         publication = <LocalTrackPublication>pub;
                     }
-                } else if (track === localTrack) {
-                    publication = <LocalTrackPublication>pub;
                 }
+            } else if (track === localTrack) {
+                publication = <LocalTrackPublication>pub;
             }
         });
         return publication;
     }
 
-    publishedTracksInfo(): TrackPublishedResponse[] {
-        const infos: TrackPublishedResponse[] = [];
-        this.tracks.forEach((track: LocalTrackPublication) => {
-            if (track.track !== undefined) {
-                infos.push({
-                    cid: track.track.mediaStreamID,
-                    track: track.trackInfo,
-                });
-            }
-        });
-        return infos;
-    }
-
-    dataChannelsInfo(): DataChannelInfo[] {
-        const infos: DataChannelInfo[] = [];
-        const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
-            if (dc?.id !== undefined && dc.id !== null) {
-                infos.push({
-                    label: dc.label,
-                    id: dc.id,
-                    target,
-                });
-            }
-        };
-
-        getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
-        getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
-        getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-
-        getInfo(
-            this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
-            SignalTarget.SUBSCRIBER,
-        );
-        return infos;
-    }
+    // publishedTracksInfo()
+    //     :
+    //     TrackPublishedResponse[] {
+    //     const infos: TrackPublishedResponse[] = [];
+    //     this.trackPublications.forEach((track: LocalTrackPublication) => {
+    //         if (track.track !== undefined) {
+    //             infos.push({
+    //                 cid: track.track.mediaStreamID,
+    //                 track: track.trackInfo,
+    //             });
+    //         }
+    //     });
+    //     return infos;
+    // }
+    //
+    // dataChannelsInfo()
+    //     :
+    //     DataChannelInfo[] {
+    //     const infos: DataChannelInfo[] = [];
+    //     const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
+    //         if (dc?.id !== undefined && dc.id !== null) {
+    //             infos.push({
+    //                 label: dc.label,
+    //                 id: dc.id,
+    //                 target,
+    //             });
+    //         }
+    //     };
+    //
+    //     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
+    //     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
+    //     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    //
+    //     getInfo(
+    //         this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
+    //         SignalTarget.SUBSCRIBER,
+    //     );
+    //     return infos;
+    // }
 
 }
 

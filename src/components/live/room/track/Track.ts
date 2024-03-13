@@ -1,21 +1,33 @@
-import path from 'path-browserify';
 import {EventEmitter} from 'events';
 
 import type TypedEventEmitter from "typed-emitter";
-import {TrackSource, TrackType} from "@/components/live/protocol/tc_models_pb";
+import {TrackSource, TrackType, VideoQuality as ProtoQuality} from "@/components/live/protocol/tc_models_pb";
 import {StreamState as ProtoStreamState} from "@/components/live/protocol/tc_rtc_pb";
 import {TrackEvent} from "@/components/live/room/LiveEvents";
-import log from "@/components/live/logger";
+import log, {LoggerNames, StructuredLogger} from "@/components/live/logger";
 import {isFireFox, isSafari, isWeb} from "@/components/live/room/utils";
+import {LoggerOptions} from "@/components/live/room/types";
+import {getLogger} from "loglevel";
+import {getLogContextFromTrack} from "@/components/live/room/track/utils";
+import {SignalClient} from "@/components/live/api/SignalClient";
+import {TrackProcessor} from "@/components/live/room/track/processor/types";
+import {an} from "vitest/dist/reporters-MmQN-57K";
+
 const BACKGROUND_REACTION_DELAY = 5000;
 
 // 分离时保留旧的音频元素，因为在 iOS 上我们会重新使用它们
 // Safari 跟踪哪些音频元素已被用户“祝福”。
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+export enum VideoQuality {
+    LOW = ProtoQuality.LOW,
+    MEDIUM = ProtoQuality.MEDIUM,
+    HIGH = ProtoQuality.HIGH,
+}
+
+export abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
     // 音轨类型
-    kind: Track.Kind;
+    kind: TrackKind;
 
     // 附加的媒体元素
     attachedElements: HTMLMediaElement[] = [];
@@ -47,19 +59,33 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // 处于后台的超时时间
     private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
+    protected loggerContextCb: LoggerOptions['loggerContextCb'];
+
     // 当前比特率
     protected _currentBitrate: number = 0;
 
     // 监听间隔
     protected monitorInterval?: ReturnType<typeof setInterval>;
 
-    protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
+    protected log: StructuredLogger = log;
+
+    protected constructor(mediaTrack: MediaStreamTrack, kind: TrackKind, loggerOptions: LoggerOptions = {}) {
         super();
+        this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
+        this.loggerContextCb = loggerOptions.loggerContextCb;
+
         this.setMaxListeners(100);
         this.kind = kind;
         this._mediaStreamTrack = mediaTrack;
         this._mediaStreamID = mediaTrack.id;
         this.source = Track.Source.Unknown;
+    }
+
+    protected get logContext() {
+        return {
+            ...this.loggerContextCb?.(),
+            ...getLogContextFromTrack(this),
+        };
     }
 
     // 当前每秒接收比特数
@@ -116,35 +142,41 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         attachToElement(this.mediaStreamTrack, element)
 
         // 处理自动播放失败
-        const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks()
-        if (allMediaStreamTracks.some((tr) => tr.kind === 'audio')) {
-            // 手动播放音频，检测音频播放状态
-            element
-                .play()
-                .then(() => {
-                    this.emit(TrackEvent.AudioPlaybackStarted);
-                })
-                .catch((e) => {
-                    if (e.name === 'NotAllowedError') {
-                        this.emit(TrackEvent.AudioPlaybackFailed, e);
-                    } else {
-                        log.warn('could not playback audio', e);
-                    }
-                    // 如果不允许音频播放，请确保我们仍然播放视频
-                    if (
-                        element &&
-                        allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
-                        e.name === 'NotAllowedError'
-                    ) {
-                        element.muted = true;
-                        element.play().catch(() => {
-                            // catch Safari，此时超出了自动播放媒体元素的选项
-                        });
-                    }
-                });
-        }
+        const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
+        const hasAudio = allMediaStreamTracks.some((tr) => tr.kind === 'audio');
 
-        this.emit(TrackEvent.ElementAttached, element)
+        // 手动播放音频，检测音频播放状态
+        element
+            .play()
+            .then(() => {
+                this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
+            })
+            .catch((e) => {
+                if (e.name === 'NotAllowedError') {
+                    this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
+                } else if (e.name === 'AbortError') {
+                    // commonly triggered by another `play` request, only log for debugging purposes
+                    log.debug(
+                        `${hasAudio ? 'audio' : 'video'} playback aborted, likely due to new play request`,
+                    );
+                } else {
+                    log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, e);
+                }
+                // 如果不允许音频播放，请确保我们仍然播放视频
+                if (
+                    hasAudio &&
+                    element &&
+                    allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
+                    e.name === 'NotAllowedError'
+                ) {
+                    element.muted = true;
+                    element.play().catch(() => {
+                        // catch Safari，此时超出了自动播放媒体元素的选项
+                    });
+                }
+            });
+
+        this.emit(TrackEvent.ElementAttached, element);
         return element;
     }
 
@@ -210,6 +242,16 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     stopMonitor() {
         if (this.monitorInterval) {
             clearInterval(this.monitorInterval);
+        }
+    }
+
+    /** @internal */
+    updateLoggerOptions(loggerOptions: LoggerOptions) {
+        if (loggerOptions.loggerName) {
+            this.log = getLogger(loggerOptions.loggerName);
+        }
+        if (loggerOptions.loggerContextCb) {
+            this.loggerContextCb = loggerOptions.loggerContextCb;
         }
     }
 
@@ -444,13 +486,15 @@ export type TrackEventCallbacks = {
     // 音频播放开始
     audioPlaybackStarted: () => void;
     // 音频播放失败
-    audioPlaybackFailed: (error:Error) => void;
+    audioPlaybackFailed: (error: Error) => void;
     // 检测到音频静音
     audioSilenceDetected: () => void;
     // 可见性已更改
     visibilityChanged: (visible: boolean, track?: any) => void;
     // 视频尺寸已更改
     videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+    videoPlaybackStarted: () => void;
+    videoPlaybackFailed: (error?: Error) => void;
     // 附加元素
     elementAttached: (element: HTMLMediaElement) => void;
     // 元素分离
@@ -459,4 +503,5 @@ export type TrackEventCallbacks = {
     upstreamPaused: (track: any) => void;
     // 上游恢复
     upstreamResumed: (track: any) => void;
+    trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
 }

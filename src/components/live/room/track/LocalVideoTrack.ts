@@ -1,14 +1,16 @@
 import LocalTrack from "@/components/live/room/track/LocalTrack";
-import { VideoLayer, VideoQuality} from "@/components/live/protocol/tc_models_pb";
+import {VideoLayer, VideoQuality} from "@/components/live/protocol/tc_models_pb";
 import {SignalClient} from "@/components/live/api/SignalClient";
 import {computeBitrate, monitorFrequency, VideoSenderStats} from "@/components/live/room/stats";
 import {SubscribedCodec, SubscribedQuality} from "@/components/live/protocol/tc_rtc_pb";
-import {isFireFox, isMobile, isWeb, Mutex} from "@/components/live/room/utils";
+import {isFireFox, isMobile, isWeb, Mutex, unwrapConstraint} from "@/components/live/room/utils";
 import {Track} from "@/components/live/room/track/Track";
-import log from "@/components/live/logger";
+import log, {StructuredLogger} from "@/components/live/logger";
 import {VideoCaptureOptions, VideoCodec} from "@/components/live/room/track/options";
 import {constraintsForOptions} from "@/components/live/room/track/utils";
 import {ScalabilityMode} from "@/components/live/room/participant/publishUtils";
+import {LoggerOptions} from "@/components/live/room/types";
+import {TrackProcessor} from "@/components/live/room/track/processor/types";
 
 export class SimulcastTrackInfo {
     codec: VideoCodec;
@@ -54,8 +56,10 @@ export default class LocalVideoTrack extends LocalTrack {
      */
     constructor(mediaTrack: MediaStreamTrack,
                 constraints?: MediaTrackConstraints,
-                userProvidedTrack = true) {
-        super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack);
+                userProvidedTrack = true,
+                loggerOptions?: LoggerOptions,
+    ) {
+        super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack, loggerOptions);
         this.senderLock = new Mutex();
     }
 
@@ -96,11 +100,30 @@ export default class LocalVideoTrack extends LocalTrack {
         super.stop();
     }
 
+    async pauseUpstream() {
+        await super.pauseUpstream();
+        for await (const sc of this.simulcastCodecs.values()) {
+            await sc.sender?.replaceTrack(null);
+        }
+    }
+
+    async resumeUpstream() {
+        await super.resumeUpstream();
+        for await (const sc of this.simulcastCodecs.values()) {
+            await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+        }
+    }
+
     async mute(): Promise<LocalVideoTrack> {
         const unlock = await this.muteLock.lock();
         try {
+            if (this.isMuted) {
+                this.log.debug('Track already muted', this.logContext);
+                return this;
+            }
+
             if (this.source === Track.Source.Camera && !this.isUserProvided) {
-                log.debug('stopping camera track');
+                this.log.debug('stopping camera track', this.logContext);
                 // 同时停止轨道，以便相机指示灯关闭
                 this._mediaStreamTrack.stop();
             }
@@ -114,6 +137,11 @@ export default class LocalVideoTrack extends LocalTrack {
     async unmute(): Promise<LocalVideoTrack> {
         const unlock = await this.muteLock.lock();
         try {
+            if (!this.isMuted) {
+                this.log.debug('Track already unmuted', this.logContext);
+                return this;
+            }
+
             if (this.source === Track.Source.Camera && !this.isUserProvided) {
                 log.debug('reacquiring camera track');
                 await this.restartTrack();
@@ -121,6 +149,13 @@ export default class LocalVideoTrack extends LocalTrack {
             await super.unmuted();
         } finally {
             unlock();
+        }
+    }
+
+    protected setTrackMuted(muted: boolean) {
+        super.setTrackMuted(muted);
+        for (const sc of this.simulcastCodecs.values()) {
+            sc.mediaStreamTrack.enabled = !muted;
         }
     }
 
@@ -149,7 +184,7 @@ export default class LocalVideoTrack extends LocalTrack {
                     rid: v.rid ?? v.id,
                     retransmittedPacketsSent: v.retransmittedPacketsSent,
                     qualityLimitationReason: v.qualityLimitationReason,
-                    qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
+                    qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges
                 };
 
                 // 找到适当的远程入站 rtp item
@@ -169,26 +204,27 @@ export default class LocalVideoTrack extends LocalTrack {
 
     setPublishingQuality(maxQuality: VideoQuality) {
         const qualities: SubscribedQuality[] = [];
-        for (let q: VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
-            qualities.push({
+        for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
+            qualities.push(new SubscribedQuality({
                 quality: q,
                 enabled: q <= maxQuality,
-            });
+            }));
         }
-        log.debug(`setting publishing quality. max quality ${maxQuality}`);
+        this.log.debug(`setting publishing quality. max quality ${maxQuality}`, this.logContext);
         this.setPublishingLayers(qualities);
     }
 
     async setDeviceId(deviceId: ConstrainDOMString) {
-        if (this.constraints.deviceId === deviceId) {
+        if (this._constraints.deviceId === deviceId) {
             return;
         }
-        this.constraints.deviceId = deviceId;
+        this._constraints.deviceId = deviceId;
         // 当视频静音时，底层媒体流轨道将停止并且
         // 稍后会重新启动
         if (!this.isMuted) {
             await this.restartTrack();
         }
+        return (this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId);
     }
 
     async restartTrack(options?: VideoCaptureOptions) {
@@ -200,11 +236,29 @@ export default class LocalVideoTrack extends LocalTrack {
             }
         }
         await this.restart(constraints);
+
+        for await (const sc of this.simulcastCodecs.values()) {
+            if (sc.sender) {
+                sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+                await sc.sender.replaceTrack(sc.mediaStreamTrack);
+            }
+        }
     }
 
-    addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {
+    async setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally: boolean = true) {
+        await super.setProcessor(processor, showProcessedStreamLocally);
+
+        if (this.processor?.processedTrack) {
+            for await (const sc of this.simulcastCodecs.values()) {
+                await sc.sender?.replaceTrack(this.processor.processedTrack);
+            }
+        }
+    }
+
+    addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo | undefined {
         if (this.simulcastCodecs.has(codec)) {
-            throw new Error(`${codec} already added`);
+            this.log.error(`${codec} already added, skipping adding simulcast codec`, this.logContext);
+            return;
         }
         const simulcastCodecInfo: SimulcastTrackInfo = {
             codec,
@@ -222,6 +276,7 @@ export default class LocalVideoTrack extends LocalTrack {
             return;
         }
         simulcastCodecInfo.sender = sender;
+
         // 浏览器将在新编解码器发布后启用禁用的编解码器/层，
         // 因此在发布新编解码器后刷新订阅的编解码器
         setTimeout(() => {
@@ -236,7 +291,8 @@ export default class LocalVideoTrack extends LocalTrack {
      * 设置应该发布的编解码器
      */
     async setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]> {
-        log.debug('setting publishing codecs', {
+        this.log.debug('setting publishing codecs', {
+            ...this.logContext,
             codecs,
             currentCodec: this.codec,
         });
@@ -254,7 +310,10 @@ export default class LocalVideoTrack extends LocalTrack {
                 await this.setPublishingLayers(codec.qualities);
             } else {
                 const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
-                log.debug(`try setPublishing for ${codec.codec}`, simulcastCodecInfo);
+                this.log.debug(`try setPublishingCodec for ${codec.codec}`, {
+                    ...this.logContext,
+                    simulcastCodecInfo,
+                });
                 if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
                     for (const q of codec.qualities) {
                         if (q.enabled) {
@@ -263,12 +322,14 @@ export default class LocalVideoTrack extends LocalTrack {
                         }
                     }
                 } else if (simulcastCodecInfo.encodings) {
-                    log.debug(`try setPublishingLayersForSender ${codec.codec}`);
+                    this.log.debug(`try setPublishingLayersForSender ${codec.codec}`, this.logContext);
                     await setPublishingLayersForSender(
                         simulcastCodecInfo.sender,
                         simulcastCodecInfo.encodings!,
                         codec.qualities,
                         this.senderLock,
+                        this.log,
+                        this.logContext,
                     );
                 }
             }
@@ -281,12 +342,19 @@ export default class LocalVideoTrack extends LocalTrack {
      * 设置应该发布的图层
      */
     async setPublishingLayers(qualities: SubscribedQuality[]) {
-        log.debug('setting publishing layers', qualities);
+        this.log.debug('setting publishing layers', {...this.logContext, qualities});
         if (!this.sender || !this.encodings) {
             return;
         }
 
-        await setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock);
+        await setPublishingLayersForSender(
+            this.sender,
+            this.encodings,
+            qualities,
+            this.senderLock,
+            this.log,
+            this.logContext,
+        );
     }
 
     protected monitorSender = async () => {
@@ -331,10 +399,12 @@ async function setPublishingLayersForSender(
     sender: RTCRtpSender,
     senderEncodings: RTCRtpEncodingParameters[],
     qualities: SubscribedQuality[],
-    senderLock: Mutex
+    senderLock: Mutex,
+    log: StructuredLogger,
+    logContext: Record<string, unknown>,
 ) {
     const unlock = await senderLock.lock();
-    log.debug('setPublishingLayersForSender', {sender, qualities, senderEncodings});
+    log.debug('setPublishingLayersForSender', {...logContext, sender, qualities, senderEncodings});
     try {
         const params = sender.getParameters();
         const {encodings} = params;
@@ -343,7 +413,11 @@ async function setPublishingLayersForSender(
         }
 
         if (encodings.length !== senderEncodings.length) {
-            log.warn('cannot set publishing layers, encodings mismatch');
+            log.warn('cannot set publishing layers, encodings mismatch', {
+                ...logContext,
+                encodings,
+                senderEncodings,
+            });
             return;
         }
 
@@ -405,7 +479,12 @@ async function setPublishingLayersForSender(
                 if (encoding.active !== subscribedQuality.enabled) {
                     hasChanged = true;
                     encoding.active = subscribedQuality.enabled;
-                    log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`);
+                    log.debug(
+                        `setting layer ${subscribedQuality.quality} to ${
+                            encoding.active ? 'enabled' : 'disabled'
+                        }`,
+                        logContext,
+                    );
                 }
 
                 // FireFox不支持将encoding.active设置为false，所以我们
@@ -428,7 +507,7 @@ async function setPublishingLayersForSender(
 
         if (hasChanged) {
             params.encodings = encodings;
-            log.debug(`setting encodings`, params.encodings);
+            log.debug(`setting encodings`, {...logContext, encodings: params.encodings});
             await sender.setParameters(params);
         }
     } finally {
@@ -458,20 +537,21 @@ export function videoLayersFromEncodings(
     // default to a single layer, HQ
     if (!encodings) {
         return [
-            {
+            new VideoLayer({
                 quality: VideoQuality.HIGH,
                 width,
                 height,
                 bitrate: 0,
                 ssrc: 0,
-            },
+            }),
         ];
     }
 
     if (svc) {
         // svc layers
         /* @ts-ignore */
-        const sm = new ScalabilityMode(encodings[0].scalabilityMode);
+        const encodingSM = encodings[0].scalabilityMode as string;
+        const sm = new ScalabilityMode(encodingSM);
         const layers = [];
         for (let i = 0; i < sm.spatial; i += 1) {
             layers.push({
@@ -491,13 +571,13 @@ export function videoLayersFromEncodings(
         if (quality === VideoQuality.UNRECOGNIZED && encodings.length === 1) {
             quality = VideoQuality.HIGH;
         }
-        return {
+        return new VideoLayer({
             quality,
-            width: width / scale,
-            height: height / scale,
+            width: Math.ceil(width / scale),
+            height: Math.ceil(height / scale),
             bitrate: encoding.maxBitrate ?? 0,
             ssrc: 0,
-        };
+        });
     });
 }
 

@@ -1,6 +1,14 @@
-import {AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions} from "@/components/live/room/track/options";
+import {
+    AudioCaptureOptions,
+    CreateLocalTracksOptions,
+    ScreenShareCaptureOptions,
+    VideoCaptureOptions, VideoCodec, videoCodecs
+} from "@/components/live/room/track/options";
 import {AudioTrack} from "@/components/live/room/track/types";
-import {sleep} from "@/components/live/room/utils";
+import {isSafari, sleep} from "@/components/live/room/utils";
+import {TrackPublication} from "@/components/live/room/track/TrackPublication";
+import {TrackPublishedResponse} from "@/components/live/protocol/tc_rtc_pb";
+import {Track} from "@/components/live/room/track/Track";
 
 export function mergeDefaultOptions(
     options?: CreateLocalTracksOptions,
@@ -109,11 +117,124 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
 }
 
 
+/**
+ * @internal
+ */
 export function getNewAudioContext(): AudioContext | void {
     const AudioContext =
         // @ts-ignore
         typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
     if (AudioContext) {
         return new AudioContext({latencyHint: 'interactive'});
+    }
+}
+
+/**
+ * @internal
+ */
+export function kindToSource(kind: MediaDeviceKind) {
+    if (kind === 'audioinput') {
+        return Track.Source.Microphone;
+    } else if (kind === 'videoinput') {
+        return Track.Source.Camera;
+    } else {
+        return Track.Source.Unknown;
+    }
+}
+
+/**
+ * @internal
+ */
+export function sourceToKind(source: Track.Source): MediaDeviceKind | undefined {
+    if (source === Track.Source.Microphone) {
+        return 'audioinput';
+    } else if (source === Track.Source.Camera) {
+        return 'videoinput';
+    } else {
+        return undefined;
+    }
+}
+
+/**
+ * @internal
+ */
+export function screenCaptureToDisplayMediaStreamOptions(
+    options: ScreenShareCaptureOptions,
+): DisplayMediaStreamOptions {
+    let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true;
+    // treat 0 as uncapped
+    if (options.resolution && options.resolution.width > 0 && options.resolution.height > 0) {
+        videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
+        if (isSafari()) {
+            videoConstraints = {
+                ...videoConstraints,
+                width: {max: options.resolution.width},
+                height: {max: options.resolution.height},
+                frameRate: options.resolution.frameRate,
+            };
+        } else {
+            videoConstraints = {
+                ...videoConstraints,
+                width: {ideal: options.resolution.width},
+                height: {ideal: options.resolution.height},
+                frameRate: options.resolution.frameRate,
+            };
+        }
+    }
+
+    return {
+        audio: options.audio ?? false,
+        video: videoConstraints,
+        // @ts-expect-error support for experimental display media features
+        controller: options.controller,
+        selfBrowserSurface: options.selfBrowserSurface,
+        surfaceSwitching: options.surfaceSwitching,
+        systemAudio: options.systemAudio,
+    };
+}
+
+export function mimeTypeToVideoCodecString(mimeType: string) {
+    const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
+    if (!videoCodecs.includes(codec)) {
+        throw Error(`Video codec not supported: ${codec}`);
+    }
+    return codec;
+}
+
+export function getTrackPublicationInfo<T extends TrackPublication>(
+    tracks: T[],
+): TrackPublishedResponse[] {
+    const infos: TrackPublishedResponse[] = [];
+    tracks.forEach((track: TrackPublication) => {
+        if (track.track !== undefined) {
+            infos.push(
+                new TrackPublishedResponse({
+                    cid: track.track.mediaStreamID,
+                    track: track.trackInfo,
+                })
+            );
+        }
+    });
+    return infos;
+}
+
+export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
+    if (track instanceof Track) {
+        return {
+            trackSid: track.sid;
+            trackSource: track.source,
+            trackMuted: track.isMuted,
+            trackEnabled: track.mediaStreamTrack.enabled,
+            trackKind: track.kind,
+        };
+    } else {
+        return {
+            trackSid: track.trackSid,
+            trackName: track.trackName,
+            track: track.track ? getLogContextFromTrack(track.track) : undefined,
+            trackEnabled: track.isEnabled,
+            trackEncrypted: track.isEncrypted,
+            trackMimeType: track.mimeType,
+        };
     }
 }

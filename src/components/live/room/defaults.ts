@@ -6,14 +6,11 @@ import {
     VideoPresets
 } from "@/components/live/room/track/options";
 import {InternalRoomConnectOptions, InternalRoomOptions} from "@/components/live/options";
-import viteConfig from "../../../../vite.config";
 import DefaultReconnectPolicy from "@/components/live/room/DefaultReconnectPolicy";
 
+export const defaultVideoCodec = 'vp8';
+
 export const publishDefaults: TrackPublishDefaults = {
-    /**
-     * @deprecated
-     */
-    audioBitrate: AudioPresets.music.maxBitrate,
     audioPreset: AudioPresets.music,
     dtx: true,
     red: true,
@@ -21,8 +18,8 @@ export const publishDefaults: TrackPublishDefaults = {
     simulcast: true,
     screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
     stopMicTrackOnMute: false,
-    videoCodec: 'vp8',
-    backupCodec: {codec: 'vp8', encoding: VideoPresets.h540.encoding},
+    videoCodec: defaultVideoCodec,
+    backupCodec: true,
 } as const;
 
 export const audioDefaults: AudioCaptureOptions = {
@@ -48,5 +45,6 @@ export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
     autoSubscribe: true,
     maxRetries: 1,
     peerConnectionTimeout: 15_000,
+    websocketTimeout: 15_000,
 } as const;
 

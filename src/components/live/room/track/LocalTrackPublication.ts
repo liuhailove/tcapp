@@ -6,6 +6,7 @@ import {Track} from "@/components/live/room/track/Track";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 import {TrackEvent} from '@/components/live/room/LiveEvents';
+import {LoggerOptions} from "@/components/live/room/types";
 
 export default class LocalTrackPublication extends TrackPublication {
     track?: LocalTrack = undefined;
@@ -16,7 +17,7 @@ export default class LocalTrackPublication extends TrackPublication {
         return this.track?.isUpstreamPaused;
     }
 
-    constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
+    constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack,loggerOptions?: LoggerOptions) {
         super(kind, ti.sid, ti.name);
 
         this.updateInfo(ti);

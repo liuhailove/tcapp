@@ -225,6 +225,13 @@ export enum RoomEvent {
     AudioPlaybackStatusChanged = 'audioPlaybackChanged',
 
     /**
+     * TCApp will attempt to autoplay all video tracks when you attach them to
+     * a video element. However, if that fails, we'll notify you via VideoPlaybackStatusChanged.
+     * Calling `room.startVideo()` in a user gesture event handler will resume the video playback.
+     */
+    VideoPlaybackStatusChanged = 'videoPlaybackChanged',
+
+    /**
      * 当我们在尝试创建曲目时遇到错误时。
      * 错误发生在 getUserMedia() 中。
      * 使用 MediaDeviceFailure.getFailure(error) 获取失败原因。
@@ -257,6 +264,21 @@ export enum RoomEvent {
      * args：（isLow：布尔值，种类：[[DataPacket_Kind]]）
      */
     DCBufferStatusChanged = 'dcBufferStatusChanged',
+
+    ParticipantEncryptionStatusChanged = 'participantEncryptionStatusChanged',
+
+    EncryptionError = 'encryptionError',
+    /**
+     * Emits whenever the current buffer status of a data channel changes
+     * args: (isLow: boolean, kind: [[DataPacket_Kind]])
+     */
+    DCBufferStatusChanged = 'dcBufferStatusChanged',
+
+    /**
+     * Triggered by a call to room.switchActiveDevice
+     * args: (kind: MediaDeviceKind, deviceId: string)
+     */
+    ActiveDeviceChanged = 'activeDeviceChanged',
 }
 
 export enum ParticipantEvent {
@@ -403,11 +425,18 @@ export enum ParticipantEvent {
     /** @internal */
     MediaDevicesError = 'mediaDevicesError',
 
+    // fired only on LocalParticipant
+    /** @internal */
+    AudioStreamAcquired = 'audioStreamAcquired',
+
     /**
      * 参与者的权限已更改。 目前仅在 LocalParticipant 上触发。
      * args: (prevPermissions: [[ParticipantPermission]])
      */
-    ParticipantPermissionChanged = 'participantPermissionsChanged',
+    ParticipantPermissionsChanged = 'participantPermissionsChanged',
+
+    /** @internal */
+    PCTrackAdded = 'pcTrackAdded',
 }
 
 /**
@@ -427,7 +456,19 @@ export enum EngineEvent {
     MediaTrackAdded = 'mediaTrackAdded',
     ActiveSpeakersUpdate = 'activeSpeakersUpdate',
     DataPacketReceived = 'dataPacketReceived',
+    RTPVideoMapUpdate = 'rtpVideoMapUpdate',
     DCBufferStatusChanged = 'dcBufferStatusChanged',
+    ParticipantUpdate = 'participantUpdate',
+    RoomUpdate = 'roomUpdate',
+    SpeakersChanged = 'speakersChanged',
+    StreamStateChanged = 'streamStateChanged',
+    ConnectionQualityUpdate = 'connectionQualityUpdate',
+    SubscriptionError = 'subscriptionError',
+    SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
+    RemoteMute = 'remoteMute',
+    SubscribedQualityUpdate = 'subscribedQualityUpdate',
+    LocalTrackUnpublished = 'localTrackUnpublished',
+    Offline = 'offline',
 }
 
 export enum TrackEvent {
@@ -459,6 +500,10 @@ export enum TrackEvent {
     /** @internal */
     VideoDimensionsChanged = 'videoDimensionsChanged',
     /** @internal */
+    VideoPlaybackStarted = 'videoPlaybackStarted',
+    /** @internal */
+    VideoPlaybackFailed = 'videoPlaybackFailed',
+    /** @internal */
     ElementAttached = 'elementAttached',
     /** @internal */
     ElementDetached = 'elementDetached',
@@ -485,4 +530,6 @@ export enum TrackEvent {
      * 在 RemoteTrackPublication 上触发
      */
     SubscriptionFailed = 'subscriptionFailed',
+
+    TrackProcessorUpdate = 'trackProcessorUpdate',
 }

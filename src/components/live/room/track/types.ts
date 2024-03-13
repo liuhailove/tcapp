@@ -3,10 +3,10 @@ import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import RemoteVideoTrack from "@/components/live/room/track/RemoteVideoTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 
-export type AudioTrack=RemoteAudioTrack|LocalAudioTrack;
-export type VideoTrack=RemoteVideoTrack|LocalVideoTrack;
+export type AudioTrack = RemoteAudioTrack | LocalAudioTrack;
+export type VideoTrack = RemoteVideoTrack | LocalVideoTrack;
 
-export type AdaptiveStreamSettings={
+export type AdaptiveStreamSettings = {
     /**
      * 设置自定义像素密度，默认为1
      * 当在超高清屏幕上播放视频时，此设置
@@ -15,10 +15,15 @@ export type AdaptiveStreamSettings={
      * 注意：这可能会显着增加人们消耗的带宽
      * 在高清屏幕上流式传输。
      */
-    pixelDensity?:number|'screen';
+    pixelDensity?: number | 'screen';
     /**
      * 如果为 true，则切换到另一个选项卡时视频会暂停。
      * 默认为 true。
      */
-    pauseVideoInBackground?:boolean;
+    pauseVideoInBackground?: boolean;
+};
+
+export interface ReplaceTrackOptions {
+    userProviderTrack?: boolean;
+    stopProcessor?: boolean;
 }

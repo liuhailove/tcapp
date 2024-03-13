@@ -8,9 +8,17 @@ export interface TrackPublishDefaults {
     videoEncoding?: VideoEncoding;
 
     /**
-     * @实验
+     * Multi-codec Simulcast
+     * VP9 and AV1 are not supported by all browser clients. When backupCodec is
+     * set, when an incompatible client attempts to subscribe to the track, LiveKit
+     * will automatically publish a secondary track encoded with the backup codec.
+     *
+     * You could customize specific encoding parameters of the backup track by
+     * explicitly setting codec and encoding fields.
+     *
+     * Defaults to `true`
      */
-    backupCodec?: true | false | { codec: BackupVideoCodec; encoding: VideoEncoding };
+    backupCodec?: true | false | { codec: BackupVideoCodec; encoding?: VideoEncoding };
 
     /**
      * 屏幕共享轨道的编码参数
@@ -108,6 +116,13 @@ export interface TrackPublishOptions extends TrackPublishDefaults {
      * 音轨来源、摄像机、麦克风或屏幕
      */
     source?: Track.Source;
+
+    /**
+     * Set stream name for the track. Audio and video tracks with the same stream name
+     * will be placed in the same `MediaStream` and offer better synchronization.
+     * By default, camera and microphone will be placed in a stream; as would screen_share and screen_share_audio
+     */
+    stream?: string;
 }
 
 export interface CreateLocalTracksOptions {
@@ -146,6 +161,12 @@ export interface ScreenShareCaptureOptions {
      */
     audio?: boolean | AudioCaptureOptions;
 
+    /**
+     * only allows for 'true' and chrome allows for additional options to be passed in
+     * https://developer.chrome.com/docs/web-platform/screen-sharing-controls/#displaySurface
+     */
+    video?: true | { displaySurface?: 'window' | 'browser' | 'monitor' };
+
     /** 采集分辨率，默认为全高清 */
     resolution?: VideoResolution;
 
@@ -160,6 +181,9 @@ export interface ScreenShareCaptureOptions {
 
     /** 指定浏览器是否应显示控件以允许用户在屏幕共享期间动态切换共享选项卡。 */
     systemAudio?: 'include' | 'exclude';
+
+    /** specify the type of content, see: https://www.w3.org/TR/mst-content-hint/#video-content-hints */
+    contentHint?: 'detail' | 'text' | 'motion';
 
     /**
      * 实验性选项，用于控制捕获选项卡时选项卡中播放的音频是否继续从用户的本地扬声器播放。
@@ -279,6 +303,8 @@ export interface AudioPreset {
 const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
+export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
+
 export type VideoCodec = (typeof codecs)[number];
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
@@ -297,7 +323,7 @@ export function isCodecEqual(c1: string | undefined, c2: string | undefined): bo
 /**
  * svc的可扩展模式，现在仅支持l3t3。
  */
-export type ScalabilityMode = 'L3T3' | 'L3T3_KEY';
+export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
 
 export namespace AudioPresets {
     export const telephone: AudioPreset = {

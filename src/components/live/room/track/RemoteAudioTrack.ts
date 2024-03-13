@@ -2,9 +2,10 @@ import RemoteTrack from "@/components/live/room/track/RemoteTrack";
 import {AudioReceiverStats, computeBitrate} from "@/components/live/room/stats";
 import {AudioOutputOptions} from "@/components/live/room/track/options";
 import {Track} from "@/components/live/room/track/Track";
-import {supportsSetSinkId} from "@/components/live/room/utils";
+import {isReactNative, supportsSetSinkId} from "@/components/live/room/utils";
 import log from "@/components/live/logger";
 import {TrackEvent} from '@/components/live/room/LiveEvents';
+import {LoggerOptions} from "@/components/live/room/types";
 
 export default class RemoteAudioTrack extends RemoteTrack {
     private prevStats?: AudioReceiverStats;
@@ -27,8 +28,9 @@ export default class RemoteAudioTrack extends RemoteTrack {
         receiver?: RTCRtpReceiver,
         audioContext?: AudioContext,
         audioOutput?: AudioOutputOptions,
+        loggerOptions?: LoggerOptions,
     ) {
-        super(mediaTrack, sid, Track.Kind.Audio, receiver);
+        super(mediaTrack, sid, Track.Kind.Audio, receiver, loggerOptions);
         this.audioContext = audioContext;
         this.webAudioPluginNodes = [];
         if (audioOutput) {
@@ -47,6 +49,10 @@ export default class RemoteAudioTrack extends RemoteTrack {
                 el.volume = volume;
             }
         }
+        if (isReactNative()) {
+            // @ts-ignore
+            this._mediaStreamTrack._setVolume(volume);
+        }
         this.elementVolume = volume;
     }
 
@@ -56,6 +62,10 @@ export default class RemoteAudioTrack extends RemoteTrack {
     getVolume(): number {
         if (this.elementVolume) {
             return this.elementVolume;
+        }
+        if (isReactNative()) {
+            // RN volume value defaults to 1.0 if hasn't been changed.
+            return 1.0;
         }
         let highestVolume = 0;
         this.attachedElements.forEach((element) => {
@@ -94,18 +104,21 @@ export default class RemoteAudioTrack extends RemoteTrack {
         } else {
             super.attach(element);
         }
-        if (this.elementVolume) {
-            element.volume = this.elementVolume;
-        }
+
         if (this.sinkId && supportsSetSinkId(element)) {
             /* @ts-ignore */
             element.setSinkId(this.sinkId);
         }
         if (this.audioContext && needsNewWebAudioConnection) {
-            log.debug('using audio context mapping');
+            this.log.debug('using audio context mapping', this.logContext);
             this.connectWebAudio(this.audioContext, element);
             element.volume = 0;
             element.muted = true;
+        }
+
+        if (this.elementVolume) {
+            // make sure volume setting is being applied to the newly attached element
+            this.setVolume(this.elementVolume);
         }
         return element;
     }
@@ -176,6 +189,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
         });
         this.gainNode = context.createGain();
         lastNode.connect(this.gainNode);
+        this.gainNode.connect(context.destination);
 
         if (this.elementVolume) {
             this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
@@ -192,6 +206,9 @@ export default class RemoteAudioTrack extends RemoteTrack {
                             new Error("Audio Context couldn't be started automatically"),
                         );
                     }
+                })
+                .catch((e) => {
+                    this.emit(TrackEvent.AudioPlaybackFailed, e);
                 });
         }
     }
@@ -242,5 +259,4 @@ export default class RemoteAudioTrack extends RemoteTrack {
         });
         return receiverStats;
     }
-
 }

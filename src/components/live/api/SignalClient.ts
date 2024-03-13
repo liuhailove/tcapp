@@ -37,7 +37,7 @@ import {
 } from "@/components/live/protocol/tc_models_pb";
 import {getClientInfo, isReactNative, Mutex, sleep, toWebsocketUrl} from "@/components/live/room/utils";
 import {ConnectionError, ConnectionErrorReason} from "@/components/live/room/errors";
-import CriticalTimers from "@/components/live/timers";
+import CriticalTimers from "@/components/live/room/timers";
 import {LoggerOptions} from "@/components/live/room/types";
 import {getLogger} from "loglevel";
 import {protoInt64} from "@bufbuild/protobuf";
@@ -257,22 +257,24 @@ export class SignalClient {
         token: string,
         sid?: string,
         reason?: ReconnectReason,
-    ): Promise<ReconnectResponse | void> {
+    ): Promise<ReconnectResponse | undefined> {
         if (!this.options) {
-            log.warn('attempted to reconnect without signal options being set, ignoring');
+            this.log.warn(
+                'attempted to reconnect without signal options being set, ignoring',
+                this.logContext,
+            );
             return;
         }
         this.state = SignalConnectionState.RECONNECTING;
         // 清除 ping 间隔并在重新连接后重新启动
         this.clearPingInterval();
 
-        const res = await this.connect(url, token, {
+        return await this.connect(url, token, {
             ...this.options,
             reconnect: true,
             sid,
             reconnectReason: reason,
         });
-        return res;
     }
 
     connect(
@@ -280,7 +282,7 @@ export class SignalClient {
         token: string,
         opts: ConnectOpts,
         abortSignal?: AbortSignal,
-    ): Promise<JoinResponse | ReconnectResponse | void> {
+    ): Promise<JoinResponse | ReconnectResponse | undefined> {
         this.connectOptions = opts;
         url = toWebsocketUrl(url);
         // 去掉尾部斜杠
@@ -290,7 +292,7 @@ export class SignalClient {
         const clientInfo = getClientInfo();
         const params = createConnectionParams(token, clientInfo, opts);
 
-        return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
+        return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
             const unlock = await this.connectionLock.lock();
             try {
                 const abortHandler = async () => {

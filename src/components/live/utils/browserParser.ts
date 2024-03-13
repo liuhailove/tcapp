@@ -4,10 +4,12 @@
 const commonVersionIdentifier = /version\/(\d+(\.?_?\d+)+)/i;
 
 export type DetectableBrowser = 'Chrome' | 'Firefox' | 'Safari';
+export type DetectableOS = 'iOS' | 'macOS';
 
 export type BrowserDetails = {
     name: DetectableBrowser;
     version: string;
+    os?: DetectableOS;
 };
 
 let browserDetails: BrowserDetails | undefined;
@@ -21,7 +23,7 @@ export function getBrowser(userAgent?: string, force = true) {
     }
     const ua = (userAgent ?? navigator.userAgent).toLowerCase();
     if (browserDetails === undefined || force) {
-        const browser = browsersList.find(({ test }) => test.test(ua));
+        const browser = browsersList.find(({test}) => test.test(ua));
         browserDetails = browser?.describe(ua);
     }
     return browserDetails;

@@ -6,6 +6,7 @@ import {
     VideoCaptureOptions
 } from "@/components/live/room/track/options";
 import {ReconnectPolicy} from "@/components/live/room/ReconnectPolicy";
+import {E2EEOptions} from "@/components/live/e2ee/types";
 
 export interface WebAudioSettings {
     audioContext: AudioContext;
@@ -79,6 +80,13 @@ export interface InternalRoomOptions {
      * 实验标志，混合网络音频中的所有音轨
      */
     expWebAudioMix: boolean | WebAudioSettings;
+
+    /**
+     * @experimental
+     */
+    e2ee?: E2EEOptions;
+
+    loggerName?: string;
 }
 
 /**
@@ -108,6 +116,9 @@ export interface InternalRoomConnectOptions {
 
     /** 指定允许初始加入连接重试的频率（仅适用于服务器不可访问的情况）*/
     maxRetries: number;
+
+    /** amount of time for Websocket connection to be established, defaults to 15s */
+    websocketTimeout: number;
 }
 
 /**

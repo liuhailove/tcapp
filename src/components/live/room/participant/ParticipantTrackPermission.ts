@@ -33,10 +33,10 @@ export function trackPermissionToProto(perms: ParticipantTrackPermission): Track
             'Invalid track permission, must provide at least one of participantIdentity and participantSid',
         );
     }
-    return {
+    return new TrackPermission({
         participantIdentity: perms.participantIdentity ?? '',
         participantSid: perms.participantSid ?? '',
         allTracks: perms.allowAll ?? false,
         trackSids: perms.allowedTrackSids || [],
-    };
+    });
 }

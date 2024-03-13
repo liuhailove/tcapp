@@ -44,13 +44,15 @@ export interface VideoSenderStats extends SenderStats {
 
     pliCount: number;
 
+    nackCount: number;
+
     rid: string;
 
     frameWidth: number;
 
-    frameWeight: number;
+    frameHeight: number;
 
-    frameSent: number;
+    framesSent: number;
 
     // bandwidth, cpu, other, none
     qualityLimitationReason: string;
@@ -118,6 +120,8 @@ export interface VideoReceiverStats extends ReceiverStats {
     nackCount?: number;
 
     decoderImplementation?: string;
+
+    mimeType?: string;
 }
 
 export function computeBitrate<T extends ReceiverStats | SenderStats>(

@@ -53,7 +53,7 @@ import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 import {getNewAudioContext} from "@/components/live/room/track/utils";
 import {toProtoSessionDescription} from "@/components/live/api/SignalClient";
-import CriticalTimers from "@/components/live/timers";
+import CriticalTimers from "@/components/live/room/timers";
 import {SimulationOptions} from "@/components/live/room/types";
 
 export enum ConnectionState {
@@ -80,7 +80,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     state: ConnectionState = ConnectionState.Disconnected;
 
     /** map of sid: [[RemoteParticipant]] */
-    participants: Map<string, RemoteParticipant>;
+    remoteParticipants: Map<string, RemoteParticipant>;
 
     /**
      * list of participants that are actively speaking. when this changes
@@ -96,9 +96,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     /** options of room */
     options: InternalRoomOptions;
 
+    /** reflects the sender encryption status of the local participant */
+    isE2EEEnabled: boolean = false;
+
     private roomInfo?: RoomModel;
 
-    private identityToSid: Map<string, string>;
+    private sidToIdentity: Map<string, string>;
 
     /** connect options of room */
     private connOptions?: InternalRoomConnectOptions;
@@ -115,9 +118,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     private disconnectLock: Mutex;
 
-    private cachedParticipantSids: Array<string>;
+    private e2eeManager: E2EEManager | undefined;
+
+    // private cachedParticipantSids: Array<string>;
 
     private connectionReconcileInterval?: ReturnType<typeof setInterval>;
+
+    private regionUrlProvider?: RegionUrlProvider;
+
+    private regionUrl?: string;
+
+    private isVideoPlaybackBlocked: boolean = false;
+
+    private log = log;
+
+    private bufferedEvents: Array<any> = [];
+
+    private isResuming: boolean = false;
 
     /**
      * Creates a new Room, the primary construct for a TcApp session.
@@ -126,9 +143,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     constructor(options?: RoomOptions) {
         super();
         this.setMaxListeners(100);
-        this.participants = new Map<string, RemoteParticipant>();
+        this.remoteParticipants = new Map<string, RemoteParticipant>();
         this.cachedParticipantSids = [];
-        this.identityToSid = new Map();
+        this.sidToIdentity = new Map();
         this.options = {...roomOptionDefaults, ...options};
 
         this.options.audioCaptureDefaults = {
@@ -212,7 +229,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
                     this.emit(RoomEvent.Reconnecting);
                 }
-                this.cachedParticipantSids = Array.from(this.participants.keys());
+                this.cachedParticipantSids = Array.from(this.remoteParticipants.keys());
             })
             .on(EngineEvent.Resumed, () => {
                 this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -221,7 +238,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 this.updateSubscriptions();
 
                 // once reconnected, figure out if any participants connected during reconnect and emit events for it
-                const diffParticipants = Array.from(this.participants.values()).filter(
+                const diffParticipants = Array.from(this.remoteParticipants.values()).filter(
                     (p) => !this.cachedParticipantSids.includes(p.sid)
                 );
                 diffParticipants.forEach((p) => this.emit(RoomEvent.ParticipantConnected, p));
@@ -380,15 +397,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return joinResponse;
     };
 
-    private applyJoinResponse=(joinResponse:JoinResponse)=>{
-      const pi=joinResponse.participant;
+    private applyJoinResponse = (joinResponse: JoinResponse) => {
+        const pi = joinResponse.participant;
 
-      this.localParticipant.sid=pi.sid;
-      this.localParticipant.identity=pi.identity;
+        this.localParticipant.sid = pi.sid;
+        this.localParticipant.identity = pi.identity;
 
         // populate remote participants, these should not trigger new events
-        this.handleParticipantUpdates([pi,...joinResponse.otherParticipants]);
-        if(joinResponse.room){
+        this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
+        if (joinResponse.room) {
             this.handleRoomUpdate(joinResponse.room);
         }
     };
@@ -530,9 +547,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (this.localParticipant.identity === identity) {
             return this.localParticipant;
         }
-        const sid = this.identityToSid.get(identity);
+        const sid = this.sidToIdentity.get(identity);
         if (sid) {
-            return this.participants.get(sid);
+            return this.remoteParticipants.get(sid);
         }
     }
 
@@ -641,8 +658,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         await this.acquireAudioContext();
 
         const elements: Array<HTMLMediaElement> = [];
-        this.participants.forEach((p) => {
-            p.audioTracks.forEach((t) => {
+        this.remoteParticipants.forEach((p) => {
+            p.audioTrackPublications.forEach((t) => {
                 if (t.track) {
                     t.track.attachedElements.forEach((e) => {
                         elements.push(e);
@@ -697,7 +714,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (kind === 'audioinput') {
             const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
             this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
-            const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
+            const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
                 (track) => track.source === Track.Source.Microphone,
             );
             try {
@@ -709,7 +726,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         } else if (kind === 'videoinput') {
             const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
             this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
-            const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
+            const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
                 (track) => track.source === Track.Source.Camera,
             );
             try {
@@ -728,7 +745,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.options.audioOutput.deviceId = deviceId;
             try {
                 await Promise.all(
-                    Array.from(this.participants.values()).map((p) => p.setAudioOutput({deviceId})),
+                    Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({deviceId})),
                 );
             } catch (e) {
                 this.options.audioOutput.deviceId = prevDeviceId;
@@ -747,7 +764,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
             .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
             .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-            .on(ParticipantEvent.ParticipantPermissionChanged, this.onLocalParticipantPermissionsChanged);
+            .on(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
     }
 
     private recreateEngine() {
@@ -757,7 +774,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
         // clear out existing remote participants, since they may have attached
         // the old engine
-        this.participants.clear();
+        this.remoteParticipants.clear();
         this.maybeCreateEngine();
     }
 
@@ -823,7 +840,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     private handleRestarting = () => {
         this.clearConnectionReconcile();
         // also unwind existing participants & existing subscriptions
-        for (const p of this.participants.values()) {
+        for (const p of this.remoteParticipants.values()) {
             this.handleParticipantDisconnected(p.sid, p);
         }
 
@@ -841,7 +858,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         try {
             // unpublish & republish tracks
             const localPubs: LocalTrackPublication[] = [];
-            this.localParticipant.tracks.forEach((pub) => {
+            this.localParticipant.trackPublications.forEach((pub) => {
                 if (pub.track) {
                     localPubs.push(pub);
                 }
@@ -882,7 +899,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.registerConnectionReconcile();
 
         // emit participant connected events after connection has been re-established
-        this.participants.forEach((participant) => {
+        this.remoteParticipants.forEach((participant) => {
             this.emit(RoomEvent.ParticipantConnected, participant);
         });
     };
@@ -894,13 +911,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         try {
-            this.participants.forEach((p) => {
-                p.tracks.forEach((pub) => {
+            this.remoteParticipants.forEach((p) => {
+                p.trackPublications.forEach((pub) => {
                     p.unpublishTrack(pub.trackSid);
                 });
             });
 
-            this.localParticipant.tracks.forEach((pub) => {
+            this.localParticipant.trackPublications.forEach((pub) => {
                 if (pub.track) {
                     this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
                 }
@@ -919,13 +936,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 .off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
                 .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
                 .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-                .off(ParticipantEvent.ParticipantPermissionChanged, this.onLocalParticipantPermissionsChanged);
+                .off(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
 
-            this.localParticipant.tracks.clear();
-            this.localParticipant.videoTracks.clear();
-            this.localParticipant.audioTracks.clear();
+            this.localParticipant.trackPublications.clear();
+            this.localParticipant.videoTrackPublications.clear();
+            this.localParticipant.audioTrackPublications.clear();
 
-            this.participants.clear();
+            this.remoteParticipants.clear();
             this.activeSpeakers = [];
             if (this.audioContext && typeof this.options.expWebAudioMix === 'boolean') {
                 this.audioContext.close();
@@ -950,13 +967,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 return;
             }
             // ensure identity <=> sid mapping
-            const sid = this.identityToSid.get(info.identity);
+            const sid = this.sidToIdentity.get(info.identity);
             if (sid && sid !== info.sid) {
                 // sid had changed, need to remove previous participant
-                this.handleParticipantDisconnected(sid, this.participants.get(sid));
+                this.handleParticipantDisconnected(sid, this.remoteParticipants.get(sid));
             }
 
-            let remoteParticipant = this.participants.get(info.sid);
+            let remoteParticipant = this.remoteParticipants.get(info.sid);
             const isNewParticipant = !remoteParticipant;
 
             // when it's disconnected, send updates
@@ -975,13 +992,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     private handleParticipantDisconnected(sid: string, participant?: RemoteParticipant) {
         // remove and send event
-        this.participants.delete(sid);
+        this.remoteParticipants.delete(sid);
         if (!participant) {
             return;
         }
 
-        this.identityToSid.delete(participant.identity);
-        participant.tracks.forEach((publication) => {
+        this.sidToIdentity.delete(participant.identity);
+        participant.trackPublications.forEach((publication) => {
             participant.unpublishTrack(publication.trackSid, true);
         });
         this.emit(RoomEvent.ParticipantConnected, participant);
@@ -998,7 +1015,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 this.localParticipant.setIsSpeaking(true);
                 activeSpeakers.push(this.localParticipant);
             } else {
-                const p = this.participants.get(speaker.sid);
+                const p = this.remoteParticipants.get(speaker.sid);
                 if (p) {
                     p.audioLevel = speaker.level;
                     p.setIsSpeaking(true);
@@ -1011,7 +1028,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.localParticipant.audioLevel = 0;
             this.localParticipant.setIsSpeaking(false);
         }
-        this.participants.forEach((p) => {
+        this.remoteParticipants.forEach((p) => {
             if (!seenSids[p.sid]) {
                 p.audioLevel = 0;
                 p.setIsSpeaking(false);
@@ -1029,7 +1046,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             lastSpeakers.set(p.sid, p);
         });
         speakerUpdate.forEach((speaker) => {
-            let p: Participant | undefined = this.participants.get(speaker.sid);
+            let p: Participant | undefined = this.remoteParticipants.get(speaker.sid);
             if (speaker.sid === this.localParticipant.sid) {
                 p = this.localParticipant;
             }
@@ -1053,7 +1070,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     private handleStreamStateUpdate = (streamStateUpdate: StreamStateUpdate) => {
         streamStateUpdate.streamStates.forEach((streamState) => {
-            const participant = this.participants.get(streamState.participantSid);
+            const participant = this.remoteParticipants.get(streamState.participantSid);
             if (!participant) {
                 return;
             }
@@ -1073,7 +1090,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     private handleSubscriptionPermissionUpdate = (update: SubscriptionPermissionUpdate) => {
-        const participant = this.participants.get(update.participantSid);
+        const participant = this.remoteParticipants.get(update.participantSid);
         if (!participant) {
             return;
         }
@@ -1086,8 +1103,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     private handleSubscriptionError = (update: SubscriptionResponse) => {
-        const participant = Array.from(this.participants.values()).find((p) => {
-            p.tracks.has(update.trackSid);
+        const participant = Array.from(this.remoteParticipants.values()).find((p) => {
+            p.trackPublications.has(update.trackSid);
         });
         if (!participant) {
             return;
@@ -1102,7 +1119,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
         // find the participant
-        const participant = this.participants.get(userPacket.participantSid);
+        const participant = this.remoteParticipants.get(userPacket.participantSid);
 
         this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
@@ -1148,7 +1165,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 this.localParticipant.setConnectionQuality(info.quality);
                 return;
             }
-            const participant = this.participants.get(info.participantSid);
+            const participant = this.remoteParticipants.get(info.participantSid);
             if (participant) {
                 participant.setConnectionQuality(info.quality);
             }
@@ -1170,7 +1187,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         if (this.options.expWebAudioMix) {
-            this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
+            this.remoteParticipants.forEach((participant) => participant.setAudioContext(this.audioContext));
         }
 
         const newContextIsRunning = this.audioContext?.state === 'running';
@@ -1194,15 +1211,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     private getOrCreateParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
-        if (this.participants.has(id)) {
-            return this.participants.get(id) as RemoteParticipant;
+        if (this.remoteParticipants.has(id)) {
+            return this.remoteParticipants.get(id) as RemoteParticipant;
         }
         // it's possible for the RTC track to arrive before signaling data
         // when this happens, we'll create the participant and make the track work
         const participant = this.createParticipant(id, info);
-        this.participants.set(id, participant);
+        this.remoteParticipants.set(id, participant);
         if (info) {
-            this.identityToSid.set(info.identity, info.sid);
+            this.sidToIdentity.set(info.identity, info.sid);
             // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
             // firing here to make sure that `ParticipantConnected` fires before the initial track events
             this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
@@ -1306,8 +1323,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         */
         const autoSubscribe = this.connOptions?.autoSubscribe ?? true;
         const trackSids = new Array<string>();
-        this.participants.forEach((participant) => {
-            participant.tracks.forEach((track) => {
+        this.remoteParticipants.forEach((participant) => {
+            participant.trackPublications.forEach((track) => {
                 if (track.isDesired !== autoSubscribe) {
                     trackSids.push(track.trackSid);
                 }
@@ -1340,8 +1357,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
      * subscription settings.
      */
     private updateSubscriptions() {
-        for (const p of this.participants.values()) {
-            for (const pub of p.videoTracks.values()) {
+        for (const p of this.remoteParticipants.values()) {
+            for (const pub of p.videoTrackPublications.values()) {
                 if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
                     pub.emitTrackUpdate();
                 }

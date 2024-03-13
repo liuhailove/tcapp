@@ -1,14 +1,18 @@
 import {Track} from "@/components/live/room/track/Track";
 import {UpdateSubscription, UpdateTrackSettings} from "@/components/live/protocol/tc_rtc_pb";
 import RemoteTrack from "@/components/live/room/track/RemoteTrack";
-import {SubscriptionError, TrackInfo} from "@/components/live/protocol/tc_models_pb";
-import {EventEmitter, TrackEvent} from "events";
+import {Encryption_Type, SubscriptionError, TrackInfo} from "@/components/live/protocol/tc_models_pb";
+import {EventEmitter} from "events";
 import TypedEventEmitter from "typed-emitter";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import RemoteAudioTrack from "@/components/live/room/track/RemoteAudioTrack";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 import RemoteVideoTrack from "@/components/live/room/track/RemoteVideoTrack";
-import log from "@/components/live/logger";
+import log, {LoggerNames} from "@/components/live/logger";
+import {LoggerOptions} from "@/components/live/room/types";
+import { TrackEvent } from '@/components/live/room/LiveEvents';
+import {getLogger} from "loglevel";
+import {getLogContextFromTrack} from "@/components/live/room/track/utils";
 
 export class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
     kind: Track.Kind;
@@ -40,8 +44,15 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
     protected metadataMuted: boolean = false;
 
-    constructor(kind: Track.Kind, id: string, name: string) {
+    protected encryption: Encryption_Type = Encryption_Type.NONE;
+
+    protected log = log;
+
+    private loggerContextCb?: LoggerOptions['loggerContextCb'];
+
+    constructor(kind: Track.Kind, id: string, name: string,loggerOptions?:LoggerOptions) {
         super();
+        this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Publication);
         this.setMaxListeners(100);
         this.kind = kind;
         this.trackSid = id;
@@ -65,6 +76,13 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
         }
     }
 
+    protected get logContext(){
+        return {
+            ...this.loggerContextCb?.(),
+            ...getLogContextFromTrack(this),
+        }
+    }
+
     get isMuted(): boolean {
         return this.metadataMuted;
     }
@@ -75,6 +93,10 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
     get isSubscribed(): boolean {
         return this.track !== undefined;
+    }
+
+    get isEncrypted(): boolean {
+        return this.encryption !== Encryption_Type.NONE;
     }
 
     /**
@@ -115,8 +137,9 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
             };
             this.simulcasted = info.simulcast;
         }
+        this.encryption = info.encryption;
         this.trackInfo = info;
-        log.trace('update publication info', {info});
+        this.log.debug('update publication info', { ...this.logContext, info });
     }
 }
 

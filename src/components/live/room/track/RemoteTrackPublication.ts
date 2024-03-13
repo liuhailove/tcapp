@@ -6,6 +6,7 @@ import {UpdateSubscription, UpdateTrackSettings} from "@/components/live/protoco
 import {TrackEvent} from "@/components/live/room/LiveEvents";
 import RemoteVideoTrack from "@/components/live/room/track/RemoteVideoTrack";
 import log from "@/components/live/logger";
+import {LoggerOptions} from "@/components/live/room/types";
 
 export default class RemoteTrackPublication extends TrackPublication {
     track?: RemoteTrack = undefined;
@@ -25,7 +26,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
     protected subscriptionError?: SubscriptionError;
 
-    constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
+    constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined, loggerOptions?: LoggerOptions,) {
         super(kind, ti.sid, ti.name);
         this.subscribed = autoSubscribe;
         this.updateInfo(ti);

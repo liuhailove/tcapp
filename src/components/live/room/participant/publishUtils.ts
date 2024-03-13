@@ -13,16 +13,18 @@ import {
 } from "@/components/live/room/track/options";
 import {getReactNativeOs, isReactNative, isSVCCodec} from "@/components/live/room/utils";
 import {Track} from "@/components/live/room/track/Track";
+import {LoggerOptions} from "@/components/live/room/types";
 
-export function mediaTrackLocalTrack(
+export function mediaTrackToLocalTrack(
     mediaStreamTrack: MediaStreamTrack,
     constraints?: MediaTrackConstraints,
+    loggerOptions?: LoggerOptions,
 ): LocalVideoTrack | LocalAudioTrack {
     switch (mediaStreamTrack.kind) {
         case 'audio':
-            return new LocalAudioTrack(mediaStreamTrack, constraints, false);
+            return new LocalAudioTrack(mediaStreamTrack, constraints, false, undefined, loggerOptions);
         case 'video':
-            return new LocalVideoTrack(mediaStreamTrack, constraints, false);
+            return new LocalVideoTrack(mediaStreamTrack, constraints, false, loggerOptions);
         default:
             throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
     }
@@ -179,7 +181,7 @@ export function computeTrackBackupEncodings(
     videoCodec: BackupVideoCodec,
     opts: TrackPublishOptions
 ) {
-    if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
+    if (!opts.backupCodec || opts.backupCodec === true || opts.backupCodec.codec === opts.videoCodec) {
         // backup codec publishing is disabled
         return;
     }
