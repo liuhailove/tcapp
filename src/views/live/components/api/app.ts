@@ -260,7 +260,7 @@ const appActions = {
     },
 
     flipVideo: () => {
-        const videoPub = currentRoom?.localParticipant.getTrackPublication(Track.Source.Camera);
+        const videoPub = currentRoom?.localParticipant.getTrackPublicationBySid(Track.Source.Camera);
         if (!videoPub) {
             return;
         }
@@ -542,8 +542,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     }
     const micElm = $(`mic-${identity}`)!;
     const signalElm = $(`signal-${identity}`)!;
-    const cameraPub = participant.getTrackPublication(Track.Source.Camera);
-    const micPub = participant.getTrackPublication(Track.Source.Microphone);
+    const cameraPub = participant.getTrackPublicationBySid(Track.Source.Camera);
+    const micPub = participant.getTrackPublicationBySid(Track.Source.Microphone);
     if (participant.isSpeaking) {
         div!.classList.add('speaking');
     } else {
@@ -638,7 +638,7 @@ function renderScreenShare(room: Room) {
         return;
     }
     let participant: Participant | undefined;
-    let screenSharePub: TrackPublication | undefined = room.localParticipant.getTrackPublication(
+    let screenSharePub: TrackPublication | undefined = room.localParticipant.getTrackPublicationBySid(
         Track.Source.ScreenShare,
     );
     let screenShareAudioPub: RemoteTrackPublication | undefined;
@@ -648,11 +648,11 @@ function renderScreenShare(room: Room) {
                 return;
             }
             participant = p;
-            const pub = p.getTrackPublication(Track.Source.ScreenShare);
+            const pub = p.getTrackPublicationBySid(Track.Source.ScreenShare);
             if (pub?.isSubscribed) {
                 screenSharePub = pub;
             }
-            const audioPub = p.getTrackPublication(Track.Source.ScreenShareAudio);
+            const audioPub = p.getTrackPublicationBySid(Track.Source.ScreenShareAudio);
             if (audioPub?.isSubscribed) {
                 screenShareAudioPub = audioPub;
             }

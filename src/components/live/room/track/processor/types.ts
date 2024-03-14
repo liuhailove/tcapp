@@ -1,4 +1,5 @@
 import {Track} from "@/components/live/room/track/Track";
+import Room from "@/components/live/room/Room";
 
 /**
  * @experimental
@@ -29,6 +30,6 @@ export interface TrackProcessor<T extends Track.Kind, U extends ProcessorOptions
     restart: (opts: U) => Promise<void>;
     destroy: () => Promise<void>;
     processedTrack: MediaStreamTrack;
-    onPublish?: MediaStreamTrack;
+    onPublish?:(room:Room)=> MediaStreamTrack;
     onUnpublish?: () => Promise<void>;
 }

@@ -192,7 +192,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.registerOnLineListener();
         this.closingLock = new Mutex();
         this.dataProcessLock = new Mutex();
-        this.dcBufferStatus = new Map<>([
+        this.dcBufferStatus = new Map([
             [DataPacket_Kind.LOSSY, true],
             [DataPacket_Kind.RELIABLE, true],
         ]);

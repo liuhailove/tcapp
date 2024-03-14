@@ -775,7 +775,7 @@ export class SignalClient {
         }
     }
 
-    private async handleOnClose(reason: string) {
+    public async handleOnClose(reason: string) {
         if (this.state === SignalConnectionState.DISCONNECTED) {
             return;
         }

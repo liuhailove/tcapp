@@ -79,7 +79,7 @@ export interface InternalRoomOptions {
      * @实验
      * 实验标志，混合网络音频中的所有音轨
      */
-    expWebAudioMix: boolean | WebAudioSettings;
+    webAudioMix: boolean | WebAudioSettings;
 
     /**
      * @experimental

@@ -120,7 +120,7 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
 /**
  * @internal
  */
-export function getNewAudioContext(): AudioContext | void {
+export function getNewAudioContext(): AudioContext {
     const AudioContext =
         // @ts-ignore
         typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
@@ -221,7 +221,7 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
 export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
     if (track instanceof Track) {
         return {
-            trackSid: track.sid;
+            trackSid: track.sid,
             trackSource: track.source,
             trackMuted: track.isMuted,
             trackEnabled: track.mediaStreamTrack.enabled,

@@ -269,12 +269,6 @@ export enum RoomEvent {
 
     EncryptionError = 'encryptionError',
     /**
-     * Emits whenever the current buffer status of a data channel changes
-     * args: (isLow: boolean, kind: [[DataPacket_Kind]])
-     */
-    DCBufferStatusChanged = 'dcBufferStatusChanged',
-
-    /**
      * Triggered by a call to room.switchActiveDevice
      * args: (kind: MediaDeviceKind, deviceId: string)
      */
