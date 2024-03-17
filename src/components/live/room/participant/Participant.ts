@@ -124,7 +124,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
      * @param source
      * @returns
      */
-    getTrackPublicationBySid(source: Track.Source): TrackPublication | undefined {
+    getTrackPublication(source: Track.Source): TrackPublication | undefined {
         for (const [, pub] of this.trackPublications) {
             if (pub.source === source) {
                 return pub;
@@ -150,17 +150,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
 
     get isCameraEnabled(): boolean {
-        const track = this.getTrackPublicationBySid(Track.Source.Camera);
+        const track = this.getTrackPublication(Track.Source.Camera);
         return !(track?.isMuted ?? true);
     }
 
     get isMicrophoneEnabled(): boolean {
-        const track = this.getTrackPublicationBySid(Track.Source.Microphone);
+        const track = this.getTrackPublication(Track.Source.Microphone);
         return !(track?.isMuted ?? true);
     }
 
     get isScreenShareEnabled(): boolean {
-        const track = this.getTrackPublicationBySid(Track.Source.ScreenShare);
+        const track = this.getTrackPublication(Track.Source.ScreenShare);
         return !!track;
     }
 

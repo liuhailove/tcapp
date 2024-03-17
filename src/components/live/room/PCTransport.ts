@@ -217,10 +217,10 @@ export default class PCTransport extends EventEmitter {
     }
 
     // 去抖协商接口
-    negotiate = debounce((onError?: (e: Error) => void) => {
+    negotiate = debounce(async (onError?: (e: Error) => void) => {
         this.emit(PCEvents.NegotiationStarted);
         try {
-            this.createAndSendOffer();
+            await this.createAndSendOffer();
         } catch (e) {
             if (onError) {
                 onError(e as Error);
@@ -269,7 +269,7 @@ export default class PCTransport extends EventEmitter {
                 ensureVideoDDExtensionsForSVC(media);
                 // mung sdp 用于编解码器比特率设置，无法通过 sendEncoding 应用
                 this.trackBitrates.some((trackbr): boolean => {
-                    if (!media.msid || !media.msid.includes(trackbr.cid)) {
+                    if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
                         return false;
                     }
 
@@ -281,6 +281,10 @@ export default class PCTransport extends EventEmitter {
                         }
                         return false;
                     });
+
+                    if (codecPayload === 0) {
+                        return true;
+                    }
 
                     let fmtpFound = false;
                     for (const fmtp of media.fmtp) {

@@ -123,8 +123,8 @@ export default class LocalParticipant extends Participant {
         return this.encryptionType !== Encryption_Type.NONE;
     }
 
-    getTrackPublicationBySid(source: Track.Source): LocalTrackPublication | undefined {
-        const track = super.getTrackPublicationBySid(source);
+    getTrackPublication(source: Track.Source): LocalTrackPublication | undefined {
+        const track = super.getTrackPublication(source);
         if (track) {
             return track as LocalTrackPublication;
         }
@@ -289,7 +289,7 @@ export default class LocalParticipant extends Participant {
         publishOptions?: TrackPublishOptions,
     ) {
         this.log.debug('setTrackEnabled', {...this.logContext, source, enabled});
-        let track = this.getTrackPublicationBySid(source);
+        let track = this.getTrackPublication(source);
         if (enabled) {
             if (track) {
                 await track.unmute();
@@ -327,6 +327,7 @@ export default class LocalParticipant extends Participant {
                             ...this.logContext,
                             ...getLogContextFromTrack(localTrack),
                         });
+                        this.log.warn("publishing track");
                         publishPromises.push(this.publishTrack(localTrack, publishOptions));
                     }
                     const publishedTracks = await Promise.all(publishPromises);
@@ -349,7 +350,7 @@ export default class LocalParticipant extends Participant {
             // screenshare cannot be muted, unpublish instead
             if (source === Track.Source.ScreenShare) {
                 track = await this.unpublishTrack(track.track);
-                const screenAudioTrack = this.getTrackPublicationBySid(Track.Source.ScreenShareAudio);
+                const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
                 if (screenAudioTrack && screenAudioTrack.track) {
                     this.unpublishTrack(screenAudioTrack.track);
                 }
@@ -380,7 +381,7 @@ export default class LocalParticipant extends Participant {
                 audio: true,
                 video: true,
             });
-
+            this.log.warn("enableCameraAndMicrophone publish track");
             await Promise.all(tracks.map((track) => this.publishTrack(track)));
         } finally {
             this.pendingPublishing.delete(Track.Source.Camera);
@@ -734,7 +735,20 @@ export default class LocalParticipant extends Participant {
                 if (isSVCCodec(videoCodec)) {
                     // vp9 svc with screenshare has problem to encode, always use L1T3 here
                     if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
-                        opts.scalabilityMode = 'L1T3';
+                        // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
+                        // It has a different path for screenshare handling and it seems to be untested/buggy
+                        // As a workaround, we are setting contentHint to force it to go through the same
+                        // path as regular camera video. While this is not optimal, it delivers the performance
+                        // that we need
+                        if ('contentHint' in track.mediaStreamTrack) {
+                            track.mediaStreamTrack.contentHint = 'motion';
+                            this.log.info('forcing contentHint to motion for screenshare with VP9', {
+                                ...this.logContext,
+                                ...getLogContextFromTrack(track),
+                            });
+                        } else {
+                            opts.scalabilityMode = 'L1T3';
+                        }
                     }
                     // set scalabilityMode to 'L3T3_KEY' by default
                     opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
@@ -785,7 +799,7 @@ export default class LocalParticipant extends Participant {
         } else if (track.kind === Track.Kind.Audio) {
             encodings = [
                 {
-                    maxBitrate: opts.audioPreset?.maxBitrate ?? opts.audioBitrate,
+                    maxBitrate: opts.audioPreset?.maxBitrate,
                     priority: opts.audioPreset?.priority ?? 'high',
                     networkPriority: opts.audioPreset?.priority ?? 'high',
                 },
@@ -796,6 +810,7 @@ export default class LocalParticipant extends Participant {
             throw new UnexpectedConnectionState('cannot publish track wen not connected');
         }
 
+        this.log.warn(`publish addTrack`, {req});
         const ti = await this.engine.addTrack(req);
         // server might not support the codec the client has requested, in that case, fallback
         // to a supported codec
@@ -825,6 +840,7 @@ export default class LocalParticipant extends Participant {
                 );
             }
         }
+
         const publication = new LocalTrackPublication(track.kind, ti, track, {
             loggerName: this.roomOptions.loggerName,
             loggerContextCb: () => this.logContext,
@@ -966,6 +982,7 @@ export default class LocalParticipant extends Participant {
             throw new UnexpectedConnectionState('cannot publish track when not connected');
         }
 
+        this.log.warn("publishAdditionalCodecForTrack addTrack");
         const ti = await this.engine.addTrack(req);
 
         const transceiverInit: RTCRtpTransceiverInit = {direction: 'sendonly'};
@@ -1122,6 +1139,7 @@ export default class LocalParticipant extends Participant {
                     });
                     await track.restartTrack();
                 }
+                this.log.warn("restarting existing track");
                 await this.publishTrack(track, pub.options);
             }),
         );

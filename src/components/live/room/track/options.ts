@@ -189,6 +189,13 @@ export interface ScreenShareCaptureOptions {
      * 实验性选项，用于控制捕获选项卡时选项卡中播放的音频是否继续从用户的本地扬声器播放。
      */
     suppressLocalAudioPlayback?: boolean;
+
+    /**
+     * Experimental option to instruct the browser to offer the current tab as the most prominent capture source
+     * @experimental
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#prefercurrenttab
+     */
+    preferCurrentTab?: boolean;
 }
 
 export interface AudioCaptureOptions {

@@ -29,14 +29,20 @@ import {
 import {
     createDummyVideoStreamTrack,
     Future,
-    getEmptyAudioStreamTrack,
-    isCloud,
+    getEmptyAudioStreamTrack, isBrowserSupported,
+    isCloud, isReactNative,
     isWeb,
     Mutex,
     supportsSetSinkId, toHttpUrl,
     unpackStreamId, unwrapConstraint
 } from "@/components/live/room/utils";
-import {audioDefaults, publishDefaults, roomOptionDefaults, videoDefaults} from "@/components/live/room/defaults";
+import {
+    audioDefaults,
+    publishDefaults,
+    roomConnectOptionDefaults,
+    roomOptionDefaults,
+    videoDefaults
+} from "@/components/live/room/defaults";
 import {EngineEvent, ParticipantEvent, RoomEvent, TrackEvent} from "@/components/live/room/LiveEvents";
 import DeviceManager from "@/components/live/room/DeviceManager";
 import {RegionUrlProvider} from "@/components/live/room/RegionUrlProvider";
@@ -396,12 +402,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+        if (!isBrowserSupported()) {
+            if (isReactNative()) {
+                throw Error("WebRTC isn't detected, have you called registerGlobals?");
+            } else {
+                throw Error(
+                    "TCApp doesn't seem to be supported on this browser. Try to update your browser and make sure no browser extensions are disabling webRTC.",
+                );
+            }
+        }
         // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
         const unlockDisconnect = await this.disconnectLock.lock();
 
         if (this.state === ConnectionState.Connected) {
             // when the state is reconnecting or connected, this function returns immediately
-            log.info(`already connected to room ${this.name}`);
+            this.log.info(`already connected to room ${this.name}`, this.logContext);
             unlockDisconnect();
             return Promise.resolve();
         }
@@ -453,6 +468,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 this.abortController = undefined;
                 resolve();
             } catch (e) {
+                this.log.error(
+                    `Initial connection failed with ConnectionError: ${e.message}.`,
+                    this.logContext,
+                );
                 if (
                     this.regionUrlProvider &&
                     e instanceof ConnectionError &&
@@ -479,6 +498,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                             `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
                             this.logContext,
                         );
+                        this.recreateEngine();
                         await connectFn(resolve, reject, nextUrl);
                     } else {
                         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
@@ -533,7 +553,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         this.log.debug(
-            `connected to Livekit Server ${Object.entries(serverInfo)
+            `connected to TcApp Server ${Object.entries(serverInfo)
                 .map(([key, value]) => `${key}: ${value}`)
                 .join(', ')}`,
             {
@@ -590,8 +610,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.isResuming ||
             this.engine?.pendingReconnect
         ) {
-            console.info("-------------Reconnecting----------------");
-            log.info('Reconnection attempt replaced by new connection attempt');
+            this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
             // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
             this.recreateEngine();
         } else {
@@ -599,10 +618,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             // create engine if previously disconnected
             this.maybeCreateEngine();
         }
+        if (this.regionUrlProvider?.isCloud()) {
+            this.engine.setRegionUrlProvider(this.regionUrlProvider);
+        }
 
         this.acquireAudioContext();
 
-        this.connOptions = {...roomOptionDefaults, ...opts} as InternalRoomConnectOptions;
+        this.connOptions = {...roomConnectOptionDefaults, ...opts} as InternalRoomConnectOptions;
 
         if (this.connOptions.rtcConfig) {
             this.engine.rtcConfig = this.connOptions.rtcConfig;
@@ -613,6 +635,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         try {
+            this.log.debug(`-------------joinResponse----------------${this.connOptions.websocketTimeout}`);
+
             const joinResponse = await this.connectSignal(
                 url,
                 token,
@@ -621,6 +645,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 this.options,
                 abortController
             );
+
+            this.log.debug(`joinResponse`, {
+                ...this.logContext,
+            });
+
+            console.info("RoomEvent.SignalConnected");
 
             this.applyJoinResponse(joinResponse);
             // forward metadata changed for the local participant
@@ -658,8 +688,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 abortController
             );
         } catch (e) {
+            await this.engine.close();
             this.recreateEngine();
-            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
             throw e;
         }
         console.info("-----------------------");
@@ -670,10 +700,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
             window.addEventListener('pagehide', this.onPageLeave);
             window.addEventListener('beforeunload', this.onPageLeave);
+        }
+        if (isWeb()) {
+            document.addEventListener('freeze', this.onPageLeave);
             navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
         this.setAndEmitConnectionState(ConnectionState.Connected);
         this.emit(RoomEvent.Connected);
+        console.info("prepare registerConnectionReconcile");
         this.registerConnectionReconcile();
     }
 
@@ -1950,7 +1984,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             const p = this.getOrCreateParticipant(info.identity, info);
             if (participantOptions.video) {
                 const dummyVideo = createDummyVideoStreamTrack(
-                    160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
+                    160 * (participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1),
                     160,
                     false,
                     true,

@@ -94,7 +94,7 @@ export class PCTransportManager {
         this.subscriber.onTrack = (ev) => {
             this.onTrack?.(ev);
         };
-        this.subscriber.onOffer = (offer) => {
+        this.publisher.onOffer = (offer) => {
             this.onPublisherOffer?.(offer);
         };
 
@@ -188,6 +188,11 @@ export class PCTransportManager {
     async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
         const unlock = await this.connectionLock.lock();
         try {
+            this.log.warn(`negotiation required, start negotiating, 
+            isPublisherConnectionRequired=${this.isPublisherConnectionRequired},
+            getConnectionState=${this.publisher.getConnectionState()}`,
+                this.logContext);
+
             if (
                 this.isPublisherConnectionRequired &&
                 this.publisher.getConnectionState() !== 'connected' &&
@@ -342,7 +347,7 @@ export class PCTransportManager {
                     reject(
                         new ConnectionError(
                             'room connection has been cancelled',
-                            ConnectionErrorReason.Cancelled
+                            ConnectionErrorReason.Cancelled,
                         ),
                     );
                     return;

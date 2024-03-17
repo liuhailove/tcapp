@@ -1,25 +1,21 @@
 <template>
   <van-barrage>
-    <div class="video" style="width: 100%; height: 400px"></div>
+    <div class="video">
+      <video width="1280" height="720" autoplay="" playsinline=""></video>
+    </div>
   </van-barrage>
   <van-space style="margin-top: 10px">
-    <van-button @click="myAppActions.connectWithFormInput()" type="primary" size="small"> 弹幕</van-button>
+    <van-button @click="myAppActions.connectWithFormInput()" type="primary" size="small">连接</van-button>
   </van-space>
 </template>
 <script setup lang="ts">
-import {ScreenSharePresets, VideoCaptureOptions, VideoCodec, VideoPresets} from "@/components/live/room/track/options";
 import {LogLevel, setLogLevel} from "@/components/live/logger";
 import {RoomConnectOptions, RoomOptions} from "@/components/live/options";
 import Room from "@/components/live/room/Room";
 import {RoomEvent} from "@/components/live/room/LiveEvents";
-import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
-import {createAudioAnalyser} from "@/components/live/room/utils";
-import {MediaDeviceFailure} from "@/components/live/room/errors";
-import Participant, {ConnectionQuality} from "@/components/live/room/participant/Participant";
-import {Track} from "@/components/live/room/track/Track";
-import {DataPacket_Kind, VideoQuality} from "@/components/live/protocol/tc_models_pb";
-import {SimulateScenario} from "@/components/live/protocol/tc_rtc_pb";
+import Participant from "@/components/live/room/participant/Participant";
 import {AccessToken} from "@/components/live/token/AccessToken";
+import {ScreenSharePresets, VideoPresets} from "@/components/live";
 
 onMounted(() => {
   // const url = "ws://localhost:7880";
@@ -44,8 +40,11 @@ onMounted(() => {
   // myAppActions.connectToRoom(url, token, roomOpts, connectOpts, true);
   // console.info("connect succeed");
 })
+let currentRoom: Room | undefined;
+
 const myAppActions = {
   connectWithFormInput: async (): Promise<Room | undefined> => {
+    setLogLevel(LogLevel.debug);
     const url = "ws://localhost:7880";
     const t = new AccessToken("devkey", "secret", {
       identity: 'me',
@@ -58,12 +57,37 @@ const myAppActions = {
       canSubscribe: true,
     });
     console.info("toJwt");
-    const token =  (await (t.toJwt())).toString();
+    const token = (await (t.toJwt())).toString();
     console.info(token);
+    const adaptiveStream = false;
+    const simulcast = false;
+    const dynacast = false;
     // 房间配置
-    const roomOpts: RoomOptions = {};
+    const roomOpts: RoomOptions = {
+      adaptiveStream,
+      dynacast,
+      audioOutput: {
+        deviceId: "",
+      },
+
+      publishDefaults: {
+        simulcast,
+        videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
+        videoCodec: 'vp8',
+        dtx: true,
+        red: true,
+        forceStereo: false,
+        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+      },
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h720.resolution,
+      },
+      e2ee: undefined,
+    };
     // 链接配置
-    const connectOpts: RoomConnectOptions = {};
+    const connectOpts: RoomConnectOptions = {
+      autoSubscribe: true,
+    };
     await myAppActions.connectToRoom(url, token, roomOpts, connectOpts, true);
   },
   connectToRoom: async (
@@ -80,7 +104,7 @@ const myAppActions = {
     // 记录房间的创建时间
     let startTime = Date.now();
     // 和Server进行交互
-    await room.prepareConnection(url);
+    await room.prepareConnection(url, token);
     const preWarmTime = Date.now() - startTime;
     console.info("preWarmed connection in " + preWarmTime + " ms");
     room.on(RoomEvent.ParticipantConnected, participantConnected)
@@ -94,6 +118,7 @@ const myAppActions = {
           const signalConnectionTime = Date.now() - startTime;
           console.info(`signal connection established in ${signalConnectionTime} ms`);
           if (shouldPublish) {
+            console.info(`shouldPublish enableCameraAndMicrophone`);
             await room.localParticipant.enableCameraAndMicrophone();
             console.info(`tracks published in ${Date.now() - startTime} ms`);
           }
@@ -111,6 +136,14 @@ const myAppActions = {
       console.info('could not connect:' + message);
       return;
     }
+    // 房间赋值
+    currentRoom = room;
+    // window对象赋值
+    window.currentRoom = room;
+
+    room.remoteParticipants.forEach((participant) => {
+      participantConnected(participant);
+    });
   },
 
   toggleAudio: async () => {

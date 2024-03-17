@@ -9,15 +9,14 @@ import {isSafari, sleep} from "@/components/live/room/utils";
 import {TrackPublication} from "@/components/live/room/track/TrackPublication";
 import {TrackPublishedResponse} from "@/components/live/protocol/tc_rtc_pb";
 import {Track} from "@/components/live/room/track/Track";
+import {cloneDeep} from "@/components/live/utils/cloneDeep";
 
 export function mergeDefaultOptions(
     options?: CreateLocalTracksOptions,
     audioDefaults?: AudioCaptureOptions,
     videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
-    const opts: CreateLocalTracksOptions = {
-        ...options,
-    };
+    const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
     if (opts.audio === true) {
         opts.audio = {};
     }
@@ -190,6 +189,7 @@ export function screenCaptureToDisplayMediaStreamOptions(
         selfBrowserSurface: options.selfBrowserSurface,
         surfaceSwitching: options.surfaceSwitching,
         systemAudio: options.systemAudio,
+        preferCurrentTab: options.preferCurrentTab,
     };
 }
 
@@ -221,20 +221,27 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
 export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
     if (track instanceof Track) {
         return {
-            trackSid: track.sid,
-            trackSource: track.source,
-            trackMuted: track.isMuted,
-            trackEnabled: track.mediaStreamTrack.enabled,
-            trackKind: track.kind,
+            trackID: track.sid,
+            source: track.source,
+            muted: track.isMuted,
+            enabled: track.mediaStreamTrack.enabled,
+            kind: track.kind,
+            streamID: track.mediaStreamID,
+            streamTrackID: track.mediaStreamTrack.id,
         };
     } else {
         return {
-            trackSid: track.trackSid,
-            trackName: track.trackName,
-            track: track.track ? getLogContextFromTrack(track.track) : undefined,
-            trackEnabled: track.isEnabled,
-            trackEncrypted: track.isEncrypted,
-            trackMimeType: track.mimeType,
+            trackID: track.trackSid,
+            enabled: track.isEnabled,
+            muted: track.isMuted,
+            trackInfo: {
+                mimeType: track.mimeType,
+                name: track.trackName,
+                encrypted: track.isEncrypted,
+                kind: track.kind,
+                source: track.source,
+                ...(track.track ? getLogContextFromTrack(track.track) : {}),
+            },
         };
     }
 }

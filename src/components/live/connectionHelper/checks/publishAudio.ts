@@ -10,6 +10,7 @@ export class PublishAudioCheck extends Checker {
         const room = await this.connect();
 
         const track = await createLocalAudioTrack();
+        console.info("PublishAudioCheck perform publishTrack");
         room.localParticipant.publishTrack(track);
         // wait for a few seconds to publish
         await new Promise((resolve) => setTimeout(resolve, 3000));

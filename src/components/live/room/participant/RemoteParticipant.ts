@@ -92,8 +92,15 @@ export default class RemoteParticipant extends Participant {
         });
     }
 
-    getTrackPublicationBySid(source: Track.Source): RemoteTrackPublication | undefined {
-        const track = super.getTrackPublicationBySid(source);
+    getTrackPublication(source: Track.Source): RemoteTrackPublication | undefined {
+        const track = super.getTrackPublication(source);
+        if (track) {
+            return track as RemoteTrackPublication;
+        }
+    }
+
+    getTrackPublicationByName(name: string): RemoteTrackPublication | undefined {
+        const track = super.getTrackPublicationByName(name);
         if (track) {
             return track as RemoteTrackPublication;
         }
@@ -108,7 +115,7 @@ export default class RemoteParticipant extends Participant {
         source: Track.Source.Microphone | Track.Source.ScreenShareAudio = Track.Source.Microphone,
     ) {
         this.volumeMap.set(source, volume);
-        const audioPublication = this.getTrackPublicationBySid(Track.Source.Microphone);
+        const audioPublication = this.getTrackPublication(source);
         if (audioPublication && audioPublication.track) {
             (audioPublication.track as RemoteAudioTrack).setVolume(volume);
         }
@@ -120,7 +127,7 @@ export default class RemoteParticipant extends Participant {
     getVolume(
         source: Track.Source.Microphone | Track.Source.ScreenShareAudio = Track.Source.Microphone,
     ) {
-        const audioPublication = this.getTrackPublicationBySid(Track.Source.Microphone);
+        const audioPublication = this.getTrackPublication(source);
         if (audioPublication && audioPublication.track) {
             return (audioPublication.track as RemoteAudioTrack).getVolume();
         }

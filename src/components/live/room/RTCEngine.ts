@@ -88,10 +88,6 @@ enum PCState {
 }
 
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
-    // publisher?: PCTransport;
-    //
-    // subscriber?: PCTransport;
-
     client: SignalClient;
 
     rtcConfig: RTCConfiguration = {};
@@ -224,9 +220,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.signalOpts = opts;
         try {
             this.joinAttempts += 1;
+
+            this.setupSignalClientCallbacks();
             const joinResponse = await this.client.join(url, token, opts, abortSignal);
             this._isClosed = false;
             this.latestJoinResponse = joinResponse;
+
             this.subscriberPrimary = joinResponse.subscriberPrimary;
             if (!this.pcManager) {
                 this.configure(joinResponse);
@@ -266,7 +265,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             this.emit(EngineEvent.Closing);
             this.removeAllListeners();
             this.deregisterOnLineListener();
-            await this.clearPendingReconnect();
+            this.clearPendingReconnect()
+            await this.cleanupPeerConnections();
             await this.cleanupClient();
         } finally {
             unlock();
@@ -434,7 +434,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         };
         this.pcManager.onTrack = (ev: RTCTrackEvent) => {
             this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-        }
+        };
+
         this.createDataChannels();
     }
 
@@ -464,10 +465,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             }
             const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
             this.client.sendAnswer(answer);
-        }
+        };
 
         this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
             this.log.debug('received trackPublishedResponse', {
+                ...this.logContext,
+                cid: res.cid,
+                track: res.track?.sid,
+            });
+            this.log.warn('received trackPublishedResponse', {
                 ...this.logContext,
                 cid: res.cid,
                 track: res.track?.sid,
@@ -481,7 +487,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             }
             const {resolve} = this.pendingTrackResolvers[res.cid];
             delete this.pendingTrackResolvers[res.cid];
-            resolve(res.track!);
+            resolve(res.track);
         };
 
         this.client.onLocalTrackUnpublished = (response: TrackUnpublishedResponse) => {
@@ -924,6 +930,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         } catch (e) {
             this.log.warn('encountered error in reconnect policy', {...this.logContext, error: e});
         }
+
         // error in user code with provided reconnect policy, stop reconnecting
         return null;
     }
@@ -1022,15 +1029,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         this.emit(EngineEvent.SignalResumed);
 
-        if (!res) {
-            const startTime = Date.now();
-            while (Date.now() < startTime + maxReconnectResponseWait) {
-                if (res) {
-                    break;
-                }
-                await sleep(50);
-            }
-        }
+        // if (!res) {
+        //     const startTime = Date.now();
+        //     while (Date.now() < startTime + maxReconnectResponseWait) {
+        //         if (res) {
+        //             break;
+        //         }
+        //         await sleep(50);
+        //     }
+        // }
 
         if (res) {
             const rtcConfig = this.makeRTCConfiguration(res);
@@ -1073,8 +1080,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     private async waitForPCReconnected() {
-        const startTime = Date.now();
-        let now = startTime;
         this.pcState = PCState.Reconnecting;
 
         this.log.debug('waiting for peer connection to reconnect', this.logContext);

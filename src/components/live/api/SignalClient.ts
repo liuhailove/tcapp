@@ -246,9 +246,14 @@ export class SignalClient {
         abortSignal?: AbortSignal,
     ): Promise<JoinResponse> {
         // 在完全重新连接期间，即使当前已连接，我们也希望启动序列
-        this.state = SignalConnectionState.CONNECTED;
+        this.state = SignalConnectionState.CONNECTING;
         this.options = opts;
         const res = await this.connect(url, token, opts, abortSignal);
+        this.log.info(
+            'joinResp',
+            {...this.logContext, res}
+        );
+        console.info("joinResp");
         return res as JoinResponse;
     }
 
@@ -293,10 +298,12 @@ export class SignalClient {
         const params = createConnectionParams(token, clientInfo, opts);
 
         return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
+
             const unlock = await this.connectionLock.lock();
             try {
                 const abortHandler = async () => {
                     this.close();
+                    clearTimeout(wsTimeout);
                     reject(new ConnectionError('room connection has been cancelled (signal)'));
                 };
 
@@ -355,6 +362,7 @@ export class SignalClient {
 
                 // onmessage
                 this.ws.onmessage = async (ev: MessageEvent) => {
+                    this.log.warn(`wsonmessage ${ev}`, this.logContext);
                     // 在收到 JoinResponse 之前不认为已连接
                     let resp: SignalResponse;
                     if (typeof ev.data === 'string') {
@@ -370,8 +378,13 @@ export class SignalClient {
                         return;
                     }
 
+                    this.log.warn(`wsonmessage resp ${resp.toJsonString()}`, this.logContext);
+                    this.log.warn(`wsonmessage state ${this.state}`, this.logContext);
+
                     if (this.state !== SignalConnectionState.CONNECTED) {
                         let shouldProcessMessage = false;
+                        this.log.warn(`wsonmessage case ${resp.message?.case}`, this.logContext);
+
                         // 只处理连接消息
                         if (resp.message?.case === 'join') {
                             this.state = SignalConnectionState.CONNECTED;
@@ -449,9 +462,7 @@ export class SignalClient {
             } finally {
                 unlock();
             }
-
         });
-
     }
 
     resetCallbacks = () => {
@@ -665,9 +676,8 @@ export class SignalClient {
         const req = new SignalRequest({message});
         try {
             if (this.useJSON) {
-                this.ws.send(JSON.stringify(req.toJsonString()))
+                this.ws.send(req.toJsonString());
             } else {
-                console.info("------SignalRequest------------");
                 this.ws.send(req.toBinary());
             }
         } catch (e) {
@@ -704,6 +714,7 @@ export class SignalClient {
                 this.onParticipantUpdate(msg.value.participants ?? []);
             }
         } else if (msg.case === 'trackPublished') {
+            this.log.warn(`received trackPublished message ,callBacks ${this.onLocalTrackPublished}`, this.logContext);
             if (this.onLocalTrackPublished) {
                 this.onLocalTrackPublished(msg.value);
             }
@@ -752,8 +763,10 @@ export class SignalClient {
                 this.onSubscriptionError(msg.value);
             }
         } else if (msg.case === 'pong') {
-            this.resetPingTimeout();
+            // this.log.info('pong message', {...this.logContext, msgCase: msg.case});
+            // this.resetPingTimeout();
         } else if (msg.case === 'pongResp') {
+            this.log.warn('pongResp message', {...this.logContext, msgCase: msg.case});
             this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
             this.resetPingTimeout();
             pingHandled = true;
@@ -762,6 +775,7 @@ export class SignalClient {
         }
 
         if (!pingHandled) {
+            this.log.warn('pingHandled message', {...this.logContext, msgCase: msg.case});
             this.resetPingTimeout();
         }
     }
@@ -796,6 +810,7 @@ export class SignalClient {
      * 收到pong消息后调用此方法
      */
     private resetPingTimeout() {
+        this.log.warn('resetPingTimeout', {...this.logContext});
         this.clearPingTimeout();
         if (!this.pingTimeoutDuration) {
             this.log.warn('ping timeout duration not set', this.logContext);
@@ -822,6 +837,7 @@ export class SignalClient {
     }
 
     private startPingInterval() {
+        this.log.warn('startPingInterval', {...this.logContext});
         this.clearPingInterval();
         this.resetPingTimeout();
         if (!this.pingIntervalDuration) {
