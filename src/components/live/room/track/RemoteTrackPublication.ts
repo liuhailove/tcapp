@@ -1,6 +1,6 @@
 import {TrackPublication} from "@/components/live/room/track/TrackPublication";
 import RemoteTrack from "@/components/live/room/track/RemoteTrack";
-import {SubscriptionError, TrackInfo, VideoQuality} from "@/components/live/protocol/tc_models_pb";
+import {ParticipantTracks, SubscriptionError, TrackInfo, VideoQuality} from "@/components/live/protocol/tc_models_pb";
 import {Track} from "@/components/live/room/track/Track";
 import {UpdateSubscription, UpdateTrackSettings} from "@/components/live/protocol/tc_rtc_pb";
 import {TrackEvent} from "@/components/live/room/LiveEvents";
@@ -26,8 +26,13 @@ export default class RemoteTrackPublication extends TrackPublication {
 
     protected subscriptionError?: SubscriptionError;
 
-    constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined, loggerOptions?: LoggerOptions,) {
-        super(kind, ti.sid, ti.name);
+    constructor(
+        kind: Track.Kind,
+        ti: TrackInfo,
+        autoSubscribe: boolean | undefined,
+        loggerOptions?: LoggerOptions,
+    ) {
+        super(kind, ti.sid, ti.name, loggerOptions);
         this.subscribed = autoSubscribe;
         this.updateInfo(ti);
     }
@@ -46,19 +51,18 @@ export default class RemoteTrackPublication extends TrackPublication {
             this.allowed = true;
         }
 
-        const sub: UpdateSubscription = {
+        const sub = new UpdateSubscription({
             trackSids: [this.trackSid],
             subscribe: this.subscribed,
             participantTracks: [
-                {
-                    // 发送一个空的参与者 ID，因为 TrackPublication 不保留它
-                    // 由接收该消息的参与者填写
+                new ParticipantTracks({
+                    // sending an empty participant id since TrackPublication doesn't keep it
+                    // this is filled in by the participant that receives this message
                     participantSid: '',
                     trackSids: [this.trackSid],
-                },
+                }),
             ],
-        };
-
+        });
         this.emit(TrackEvent.UpdateSubscription, sub);
         this.emitSubscriptionUpdateIfChanged(prevStatus);
         this.emitPermissionUpdateIfChanged(prevPermission);
@@ -143,6 +147,9 @@ export default class RemoteTrackPublication extends TrackPublication {
         ) {
             return;
         }
+        if (this.track instanceof RemoteVideoTrack) {
+            this.videoDimensions = dimensions;
+        }
         this.currentVideoQuality = undefined;
 
         this.emitTrackUpdate();
@@ -169,6 +176,7 @@ export default class RemoteTrackPublication extends TrackPublication {
         return this.currentVideoQuality;
     }
 
+    /** @internal */
     setTrack(track?: RemoteTrack) {
         const prevStatus = this.subscriptionStatus;
         const prevPermission = this.permissionStatus;
@@ -197,6 +205,7 @@ export default class RemoteTrackPublication extends TrackPublication {
         this.emitSubscriptionUpdateIfChanged(prevStatus);
     }
 
+    /** @internal */
     setAllowed(allowed: boolean) {
         const prevStatus = this.subscriptionStatus;
         const prevPermission = this.permissionStatus;
@@ -205,10 +214,12 @@ export default class RemoteTrackPublication extends TrackPublication {
         this.emitSubscriptionUpdateIfChanged(prevStatus);
     }
 
+    /** @internal */
     setSubscriptionError(error: SubscriptionError) {
         this.emit(TrackEvent.SubscriptionFailed, error);
     }
 
+    /** @internal */
     updateInfo(info: TrackInfo) {
         super.updateInfo(info);
         const prevMetadataMuted = this.metadataMuted;
@@ -232,7 +243,7 @@ export default class RemoteTrackPublication extends TrackPublication {
         previousPermissionStatus: TrackPublication.PermissionStatus,
     ) {
         const currentPermissionStatus = this.permissionStatus;
-        if (currentPermissionStatus != previousPermissionStatus) {
+        if (currentPermissionStatus !== previousPermissionStatus) {
             this.emit(
                 TrackEvent.SubscriptionPermissionChanged,
                 this.permissionStatus,
@@ -243,13 +254,14 @@ export default class RemoteTrackPublication extends TrackPublication {
 
     private isManualOperationAllowed(): boolean {
         if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
-            log.warn('adaptive stream is enabled, cannot change video track settings', {
-                trackSid: this.trackSid,
-            });
+            this.log.warn(
+                'adaptive stream is enabled, cannot change video track settings',
+                this.logContext,
+            );
             return false;
         }
         if (!this.isDesired) {
-            log.warn('cannot update track settings when not subscribed', {trackSid: this.trackSid});
+            this.log.warn('cannot update track settings when not subscribed', this.logContext);
             return false;
         }
         return true;
@@ -258,41 +270,44 @@ export default class RemoteTrackPublication extends TrackPublication {
     protected handleEnded = (track: RemoteTrack) => {
         this.setTrack(undefined);
         this.emit(TrackEvent.Ended, track);
-    }
+    };
 
     protected get isAdaptiveStream(): boolean {
         return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
     }
 
     protected handleVisibilityChange = (visible: boolean) => {
-        log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
-            trackSid: this.trackSid,
-        });
+        this.log.debug(
+            `adaptivestream video visibility ${this.trackSid}, visible=${visible}`,
+            this.logContext,
+        );
         this.disabled = !visible;
         this.emitTrackUpdate();
     };
 
     protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-        log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
-            trackSid: this.trackSid,
-        });
+        this.log.debug(
+            `adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`,
+            this.logContext,
+        );
         this.videoDimensions = dimensions;
         this.emitTrackUpdate();
     };
 
+    /* @internal */
     emitTrackUpdate() {
-        const settings: UpdateTrackSettings = UpdateTrackSettings.fromJson({
+        const settings: UpdateTrackSettings = new UpdateTrackSettings({
             trackSids: [this.trackSid],
             disabled: this.disabled,
             fps: this.fps,
         });
         if (this.videoDimensions) {
-            settings.width = this.videoDimensions.width;
-            settings.height = this.videoDimensions.height;
+            settings.width = Math.ceil(this.videoDimensions.width);
+            settings.height = Math.ceil(this.videoDimensions.height);
         } else if (this.currentVideoQuality !== undefined) {
             settings.quality = this.currentVideoQuality;
         } else {
-            // 默认为高质量
+            // defaults to high quality
             settings.quality = VideoQuality.HIGH;
         }
 

@@ -17,13 +17,10 @@ export function mergeDefaultOptions(
     videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
     const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
-    if (opts.audio === true) {
-        opts.audio = {};
-    }
-    if (opts.video === true) {
-        opts.video = {};
-    }
-    // 使用默认值
+    if (opts.audio === true) opts.audio = {};
+    if (opts.video === true) opts.video = {};
+
+    // use defaults
     if (opts.audio) {
         mergeObjectWithoutOverwriting(
             opts.audio as Record<string, unknown>,
@@ -44,9 +41,7 @@ function mergeObjectWithoutOverwriting(
     objectToMerge: Record<string, unknown>,
 ): Record<string, unknown> {
     Object.keys(objectToMerge).forEach((key) => {
-        if (mainObject[key] === undefined) {
-            mainObject[key] = objectToMerge[key];
-        }
+        if (mainObject[key] === undefined) mainObject[key] = objectToMerge[key];
     });
     return mainObject;
 }
@@ -109,17 +104,16 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
         await sleep(timeOffset);
         analyser.getByteTimeDomainData(dataArray);
         const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
-        await ctx.close();
+        ctx.close();
         return !someNoise;
     }
     return false;
 }
 
-
 /**
  * @internal
  */
-export function getNewAudioContext(): AudioContext {
+export function getNewAudioContext(): AudioContext | void {
     const AudioContext =
         // @ts-ignore
         typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
@@ -211,7 +205,7 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
                 new TrackPublishedResponse({
                     cid: track.track.mediaStreamID,
                     track: track.trackInfo,
-                })
+                }),
             );
         }
     });

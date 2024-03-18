@@ -24,6 +24,6 @@ export type AdaptiveStreamSettings = {
 };
 
 export interface ReplaceTrackOptions {
-    userProviderTrack?: boolean;
+    userProvidedTrack?: boolean;
     stopProcessor?: boolean;
 }

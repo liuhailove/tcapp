@@ -218,7 +218,7 @@ export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Ki
         return this;
     }
 
-    async unmuted(): Promise<LocalTrack> {
+    async unmute(): Promise<LocalTrack> {
         this.setTrackMuted(false);
         return this;
     }
@@ -238,7 +238,7 @@ export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Ki
         if (typeof userProvidedOrOptions === 'boolean') {
             userProvidedTrack = userProvidedOrOptions;
         } else if (userProvidedOrOptions !== undefined) {
-            userProvidedTrack = userProvidedOrOptions.userProviderTrack;
+            userProvidedTrack = userProvidedOrOptions.userProvidedTrack;
             stopProcessor = userProvidedOrOptions.stopProcessor;
         }
 

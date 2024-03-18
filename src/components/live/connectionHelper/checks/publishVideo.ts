@@ -10,7 +10,6 @@ export class PublishVideoCheck extends Checker {
         const room = await this.connect();
 
         const track = await createLocalVideoTrack();
-        console.info("PublishVideoCheck perform publishTrack");
         room.localParticipant.publishTrack(track);
         // wait for a few seconds to publish
         await new Promise((resolve) => setTimeout(resolve, 3000));

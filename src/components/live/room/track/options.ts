@@ -266,9 +266,15 @@ export interface VideoEncoding {
     priority?: RTCPriorityType;
 }
 
-/**
- * 视频预设
- */
+export interface VideoPresetOptions {
+    width: number;
+    height: number;
+    aspectRatio?: number;
+    maxBitrate: number;
+    maxFramerate?: number;
+    priority?: RTCPriorityType;
+}
+
 export class VideoPreset {
     encoding: VideoEncoding;
 
@@ -276,20 +282,44 @@ export class VideoPreset {
 
     height: number;
 
+    aspectRatio?: number;
+
+    constructor(videoPresetOptions: VideoPresetOptions);
     constructor(
         width: number,
         height: number,
         maxBitrate: number,
         maxFramerate?: number,
         priority?: RTCPriorityType,
+    );
+    constructor(
+        widthOrOptions: number | VideoPresetOptions,
+        height?: number,
+        maxBitrate?: number,
+        maxFramerate?: number,
+        priority?: RTCPriorityType,
     ) {
-        this.width = width;
-        this.height = height;
-        this.encoding = {
-            maxBitrate,
-            maxFramerate,
-            priority,
-        };
+        if (typeof widthOrOptions === 'object') {
+            this.width = widthOrOptions.width;
+            this.height = widthOrOptions.height;
+            this.aspectRatio = widthOrOptions.aspectRatio;
+            this.encoding = {
+                maxBitrate: widthOrOptions.maxBitrate,
+                maxFramerate: widthOrOptions.maxFramerate,
+                priority: widthOrOptions.priority,
+            };
+        } else if (height !== undefined && maxBitrate !== undefined) {
+            this.width = widthOrOptions;
+            this.height = height;
+            this.aspectRatio = widthOrOptions / height;
+            this.encoding = {
+                maxBitrate,
+                maxFramerate,
+                priority,
+            };
+        } else {
+            throw new TypeError('Unsupported options: provide at least width, height and maxBitrate');
+        }
     }
 
     get resolution(): VideoResolution {
@@ -297,7 +327,7 @@ export class VideoPreset {
             width: this.width,
             height: this.height,
             frameRate: this.encoding.maxFramerate,
-            aspectRatio: this.width / this.height,
+            aspectRatio: this.aspectRatio,
         };
     }
 }
@@ -307,12 +337,11 @@ export interface AudioPreset {
     priority?: RTCPriorityType;
 }
 
-const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
 export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 
-export type VideoCodec = (typeof codecs)[number];
+export type VideoCodec = (typeof videoCodecs)[number];
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 
@@ -320,15 +349,8 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
     return !!backupCodecs.find((backup) => backup === codec);
 }
 
-export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
-    return (
-        c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
-        c2?.toLowerCase().replace(/audio\/|video\//y, '')
-    );
-}
-
 /**
- * svc的可扩展模式，现在仅支持l3t3。
+ * scalability modes for svc.
  */
 export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
 
@@ -354,14 +376,14 @@ export namespace AudioPresets {
 }
 
 /**
- * 视频分辨率/编码的健全预设
+ * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-    h90: new VideoPreset(160, 90, 60_000, 15),
-    h180: new VideoPreset(320, 180, 120_000, 15),
-    h216: new VideoPreset(384, 216, 180_000, 15),
-    h360: new VideoPreset(640, 360, 300_000, 20),
-    h540: new VideoPreset(960, 540, 600_000, 25),
+    h90: new VideoPreset(160, 90, 90_000, 20),
+    h180: new VideoPreset(320, 180, 160_000, 20),
+    h216: new VideoPreset(384, 216, 180_000, 20),
+    h360: new VideoPreset(640, 360, 450_000, 20),
+    h540: new VideoPreset(960, 540, 800_000, 25),
     h720: new VideoPreset(1280, 720, 1_700_000, 30),
     h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
     h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
@@ -369,24 +391,28 @@ export const VideoPresets = {
 } as const;
 
 /**
- * 四乘三预设
+ * Four by three presets
  */
 export const VideoPresets43 = {
-    h120: new VideoPreset(160, 120, 80_000, 15),
-    h180: new VideoPreset(240, 180, 100_000, 15),
-    h240: new VideoPreset(320, 240, 150_000, 15),
-    h360: new VideoPreset(480, 360, 225_000, 20),
-    h480: new VideoPreset(640, 480, 300_000, 20),
-    h540: new VideoPreset(720, 540, 450_000, 25),
-    h720: new VideoPreset(960, 720, 1_500_000, 30),
-    h1080: new VideoPreset(1440, 1080, 2_500_000, 30),
-    h1440: new VideoPreset(1920, 1440, 3_500_000, 30),
+    h120: new VideoPreset(160, 120, 70_000, 20),
+    h180: new VideoPreset(240, 180, 125_000, 20),
+    h240: new VideoPreset(320, 240, 140_000, 20),
+    h360: new VideoPreset(480, 360, 330_000, 20),
+    h480: new VideoPreset(640, 480, 500_000, 20),
+    h540: new VideoPreset(720, 540, 600_000, 25),
+    h720: new VideoPreset(960, 720, 1_300_000, 30),
+    h1080: new VideoPreset(1440, 1080, 2_300_000, 30),
+    h1440: new VideoPreset(1920, 1440, 3_800_000, 30),
 } as const;
 
 export const ScreenSharePresets = {
     h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
-    h720fps5: new VideoPreset(1280, 720, 400_000, 5, 'medium'),
-    h720fps15: new VideoPreset(1280, 720, 1_000_000, 15, 'medium'),
-    h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15, 'medium'),
-    h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30, 'medium'),
+    h360fps15: new VideoPreset(640, 360, 400_000, 15, 'medium'),
+    h720fps5: new VideoPreset(1280, 720, 800_000, 5, 'medium'),
+    h720fps15: new VideoPreset(1280, 720, 1_500_000, 15, 'medium'),
+    h720fps30: new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
+    h1080fps15: new VideoPreset(1920, 1080, 2_500_000, 15, 'medium'),
+    h1080fps30: new VideoPreset(1920, 1080, 5_000_000, 30, 'medium'),
+    // original resolution, without resizing
+    original: new VideoPreset(0, 0, 7_000_000, 30, 'medium'),
 } as const;

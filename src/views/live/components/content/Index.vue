@@ -1,12 +1,31 @@
 <template>
   <van-barrage>
     <div class="video">
-      <video width="1280" height="720" autoplay="" playsinline=""></video>
+      <video width="1280" height="460" autoplay="" playsinline=""></video>
     </div>
   </van-barrage>
   <van-space style="margin-top: 10px">
     <van-button @click="myAppActions.connectWithFormInput()" type="primary" size="small">连接</van-button>
   </van-space>
+  <div id="chat-area" style="height: 220px;">
+    <van-field
+        v-model="chat"
+        rows="10"
+        autosize
+        type="textarea"
+        readonly
+    />
+    <van-field
+        v-model="myMsg"
+        center
+        clearable
+        placeholder="说点什么"
+    >
+      <template #button>
+        <van-button size="small" type="primary" @click="myAppActions.enterText()">发送</van-button>
+      </template>
+    </van-field>
+  </div>
 </template>
 <script setup lang="ts">
 import {LogLevel, setLogLevel} from "@/components/live/logger";
@@ -16,6 +35,21 @@ import {RoomEvent} from "@/components/live/room/LiveEvents";
 import Participant from "@/components/live/room/participant/Participant";
 import {AccessToken} from "@/components/live/token/AccessToken";
 import {ScreenSharePresets, VideoPresets} from "@/components/live";
+import {ExternalE2EEKeyProvider} from "@/components/live/e2ee";
+
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+const state = {
+  isFrontFacing: false,
+  encoder: new TextEncoder(),
+  decoder: new TextDecoder(),
+  defaultDevices: new Map<MediaDeviceKind, string>(),
+  bitrateInterval: undefined as any,
+  e2eeKeyProvider: new ExternalE2EEKeyProvider(),
+};
+
+const chat = ref("");
+const myMsg = ref("");
 
 onMounted(() => {
   // const url = "ws://localhost:7880";
@@ -55,6 +89,7 @@ const myAppActions = {
       roomJoin: true,
       canPublish: true,
       canSubscribe: true,
+      room: "myroom",
     });
     console.info("toJwt");
     const token = (await (t.toJwt())).toString();
@@ -168,6 +203,16 @@ const myAppActions = {
 
   enterText: () => {
     console.info("enterText");
+    if (!currentRoom) {
+      return;
+    }
+    if (myMsg.value) {
+      const msg = state.encoder.encode(myMsg.value);
+      currentRoom.localParticipant.publishData(msg, {reliable: true});
+      chat.value +=
+          `${currentRoom.localParticipant.identity} (me):${myMsg.value}\n`;
+      myMsg.value = '';
+    }
   },
 
   disconnectRoom: () => {
@@ -193,6 +238,7 @@ const myAppActions = {
 
 function participantConnected(participant: Participant) {
   console.info('participantConnected, identity=' + participant.identity + ", connected=" + participant.metadata);
+  chat.value += `${participant.identity} (From):来了\n`;
 }
 
 </script>

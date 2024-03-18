@@ -10,7 +10,6 @@ export class PublishAudioCheck extends Checker {
         const room = await this.connect();
 
         const track = await createLocalAudioTrack();
-        console.info("PublishAudioCheck perform publishTrack");
         room.localParticipant.publishTrack(track);
         // wait for a few seconds to publish
         await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -29,6 +28,6 @@ export class PublishAudioCheck extends Checker {
         if (numPackets === 0) {
             throw new Error('Could not determine packets are sent');
         }
-        this.appendMessage(`publish ${numPackets} audio packets`);
+        this.appendMessage(`published ${numPackets} audio packets`);
     }
 }

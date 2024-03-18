@@ -33,6 +33,8 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
             return ConnectionQuality.Good;
         case ProtoQuality.POOR:
             return ConnectionQuality.Poor;
+        // case ProtoQuality.LOST:
+        //     return ConnectionQuality.Lost;
         default:
             return ConnectionQuality.Unknown;
     }
@@ -81,24 +83,28 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     protected get logContext() {
         return {
             ...this.loggerOptions?.loggerContextCb?.(),
-            participantSid: this.sid,
-            participantId: this.identity,
         };
     }
 
     get isEncrypted() {
         return (
             this.trackPublications.size > 0 &&
-            // TODO
-            Array.from(this.trackPublications.values()).every((tr) => {
-                // TODO
-                //tr.isEncrypted;
-                return true;
-            })
+            Array.from(this.trackPublications.values()).every((tr) => tr.isEncrypted)
         );
     }
 
-    constructor(sid: string, identity: string, name?: string, metadata?: string, loggerOptions?: LoggerOptions,) {
+    get isAgent() {
+        return this.permissions?.agent ?? false;
+    }
+
+    /** @internal */
+    constructor(
+        sid: string,
+        identity: string,
+        name?: string,
+        metadata?: string,
+        loggerOptions?: LoggerOptions,
+    ) {
         super();
 
         this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
@@ -121,8 +127,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     /**
      * Finds the first track that matches the source filter, for example, getting
      * the user's camera track with getTrackBySource(Track.Source.Camera).
-     * @param source
-     * @returns
      */
     getTrackPublication(source: Track.Source): TrackPublication | undefined {
         for (const [, pub] of this.trackPublications) {
@@ -134,8 +138,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
     /**
      * Finds the first track that matches the track's name.
-     * @param name
-     * @returns
      */
     getTrackPublicationByName(name: string): TrackPublication | undefined {
         for (const [, pub] of this.trackPublications) {
@@ -171,7 +173,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     /** when participant joined the room */
     get joinedAt(): Date | undefined {
         if (this.participantInfo) {
-            return new Date(Number(this.participantInfo.joinedAt * 1000));
+            return new Date(Number.parseInt(this.participantInfo.joinedAt.toString()) * 1000);
         }
         return new Date();
     }
@@ -185,12 +187,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         // of the payload, they can be safely skipped
         if (
             this.participantInfo &&
-            this.participantInfo.sid == info.sid &&
+            this.participantInfo.sid === info.sid &&
             this.participantInfo.version > info.version
         ) {
             return false;
         }
-
         this.identity = info.identity;
         this.sid = info.sid;
         this._setName(info.name);
@@ -226,6 +227,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         }
     }
 
+    /** @internal */
     setPermissions(permissions: ParticipantPermission): boolean {
         const prevPermissions = this.permissions;
         const changed =
@@ -246,6 +248,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         return changed;
     }
 
+    /** @internal */
     setIsSpeaking(speaking: boolean) {
         if (speaking === this.isSpeaking) {
             return;
@@ -257,6 +260,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         this.emit(ParticipantEvent.IsSpeakingChanged, speaking);
     }
 
+    /** @internal */
     setConnectionQuality(q: ProtoQuality) {
         const prevQuality = this._connectionQuality;
         this._connectionQuality = qualityFromProto(q);
@@ -265,12 +269,15 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         }
     }
 
-    /** @internal */
+    /**
+     * @internal
+     */
     setAudioContext(ctx: AudioContext | undefined) {
         this.audioContext = ctx;
         this.audioTrackPublications.forEach(
             (track) =>
-                (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) && track.track.setAudioContext(ctx),
+                (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
+                track.track.setAudioContext(ctx),
         );
     }
 

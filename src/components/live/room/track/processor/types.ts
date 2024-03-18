@@ -26,10 +26,10 @@ export interface VideoProcessorOptions extends ProcessorOptions<Track.Kind.Video
 
 export interface TrackProcessor<T extends Track.Kind, U extends ProcessorOptions<T> = ProcessorOptions<T>> {
     name: string;
-    init: (opts: ProcessorOptions<T>) => void;
+    init: (opts: U) => Promise<void>;
     restart: (opts: U) => Promise<void>;
     destroy: () => Promise<void>;
-    processedTrack: MediaStreamTrack;
-    onPublish?:(room:Room)=> MediaStreamTrack;
+    processedTrack?: MediaStreamTrack;
+    onPublish?: (room: Room) => Promise<void>;
     onUnpublish?: () => Promise<void>;
 }

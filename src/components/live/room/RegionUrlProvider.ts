@@ -40,14 +40,13 @@ export class RegionUrlProvider {
         if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTime) {
             this.regionSettings = await this.fetchRegionSettings(abortSignal);
         }
-
-        const regionLeft = this.regionSettings.regions.filter(
+        const regionsLeft = this.regionSettings.regions.filter(
             (region) => !this.attemptedRegions.find((attempted) => attempted.url === region.url),
         );
-        if (regionLeft.length > 0) {
-            const nextRegion = regionLeft[0];
+        if (regionsLeft.length > 0) {
+            const nextRegion = regionsLeft[0];
             this.attemptedRegions.push(nextRegion);
-            log.debug(`next region ${nextRegion.region}`);
+            log.debug(`next region: ${nextRegion.region}`);
             return nextRegion.url;
         } else {
             return null;
@@ -58,6 +57,7 @@ export class RegionUrlProvider {
         this.attemptedRegions = [];
     }
 
+    /* @internal */
     async fetchRegionSettings(signal?: AbortSignal) {
         const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
             headers: {authorization: `Bearer ${this.token}`},

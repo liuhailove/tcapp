@@ -52,6 +52,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
         return this._mediaStreamTrack;
     }
 
+    /** @internal */
     setMuted(muted: boolean) {
         super.setMuted(muted);
 
@@ -150,6 +151,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
         return detachedElements;
     }
 
+    /** @internal */
     getDecoderImplementation(): string | undefined {
         return this.prevStats?.decoderImplementation;
     }
@@ -216,9 +218,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
     protected async handleAppVisibilityChanged() {
         await super.handleAppVisibilityChanged();
-        if (!this.isAdaptiveStream) {
-            return;
-        }
+        if (!this.isAdaptiveStream) return;
         this.updateVisibility();
     }
 
@@ -232,11 +232,13 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
             0,
         );
 
-        const backgroundPause = this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
-            ? this.isInBackground
-            : false;
+        const backgroundPause =
+            this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
+                ? this.isInBackground
+                : false;
         const isPiPMode = this.elementInfos.some((info) => info.pictureInPicture);
-        const isVisible = (this.elementInfos.some((info) => info.visible) && !backgroundPause) || isPiPMode;
+        const isVisible =
+            (this.elementInfos.some((info) => info.visible) && !backgroundPause) || isPiPMode;
 
         if (this.lastVisible === isVisible) {
             return;
@@ -262,8 +264,8 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
             const currentElementWidth = info.width() * pixelDensity;
             const currentElementHeight = info.height() * pixelDensity;
             if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
-                maxWidth = currentElementWidth
-                maxHeight = currentElementHeight
+                maxWidth = currentElementWidth;
+                maxHeight = currentElementHeight;
             }
         }
 
@@ -296,14 +298,15 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
         }
         return pixelDensity;
     }
-
 }
-
 
 export interface ElementInfo {
     element: object;
+
     width(): number;
+
     height(): number;
+
     visible: boolean;
     pictureInPicture: boolean;
     visibilityChangedAt: number | undefined;
@@ -312,17 +315,12 @@ export interface ElementInfo {
     handleVisibilityChanged?: () => void;
 
     observe(): void;
+
     stopObserving(): void;
 }
 
 class HTMLElementInfo implements ElementInfo {
     element: HTMLMediaElement;
-
-    private isPiP: boolean;
-
-    private isIntersecting: boolean;
-
-    visibilityChangedAt: number | undefined;
 
     get visible(): boolean {
         return this.isPiP || this.isIntersecting;
@@ -332,9 +330,15 @@ class HTMLElementInfo implements ElementInfo {
         return this.isPiP;
     }
 
+    visibilityChangedAt: number | undefined;
+
     handleResize?: () => void;
 
     handleVisibilityChanged?: () => void;
+
+    private isPiP: boolean;
+
+    private isIntersecting: boolean;
 
     constructor(element: HTMLMediaElement, visible?: boolean) {
         this.element = element;
@@ -351,7 +355,7 @@ class HTMLElementInfo implements ElementInfo {
         return this.element.clientHeight;
     }
 
-    observe(): void {
+    observe() {
         // make sure we update the current visible state once we start to observe
         this.isIntersecting = isElementInViewport(this.element);
         this.isPiP = document.pictureInPictureElement === this.element;
@@ -374,17 +378,17 @@ class HTMLElementInfo implements ElementInfo {
             this.visibilityChangedAt = Date.now();
             this.handleVisibilityChanged?.();
         }
-    }
+    };
 
     private onEnterPiP = () => {
         this.isPiP = true;
         this.handleVisibilityChanged?.();
-    }
+    };
 
     private onLeavePiP = () => {
         this.isPiP = false;
         this.handleVisibilityChanged?.();
-    }
+    };
 
     stopObserving() {
         getIntersectionObserver()?.unobserve(this.element);

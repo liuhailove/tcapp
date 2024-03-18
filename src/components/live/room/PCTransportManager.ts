@@ -24,18 +24,6 @@ export class PCTransportManager {
 
     public peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
-    private isPublisherConnectionRequired: boolean;
-
-    private isSubscriberConnectionRequired: boolean;
-
-    private state: PCTransportState;
-
-    private connectionLock: Mutex;
-
-    private log = log;
-
-    private loggerOptions: LoggerOptions;
-
     public get needsPublisher() {
         return this.isPublisherConnectionRequired;
     }
@@ -61,6 +49,18 @@ export class PCTransportManager {
     public onTrack?: (ev: RTCTrackEvent) => void;
 
     public onPublisherOffer?: (offer: RTCSessionDescriptionInit) => void;
+
+    private isPublisherConnectionRequired: boolean;
+
+    private isSubscriberConnectionRequired: boolean;
+
+    private state: PCTransportState;
+
+    private connectionLock: Mutex;
+
+    private log = log;
+
+    private loggerOptions: LoggerOptions;
 
     constructor(
         rtcConfig: RTCConfiguration,
@@ -106,7 +106,7 @@ export class PCTransportManager {
     private get logContext() {
         return {
             ...this.loggerOptions.loggerContextCb?.(),
-        }
+        };
     }
 
     requirePublisher(require = true) {
@@ -136,11 +136,12 @@ export class PCTransportManager {
             const publisher = this.publisher;
             for (const sender of publisher.getSenders()) {
                 try {
+                    // TODO: react-native-webrtc doesn't have removeTrack yet.
                     if (publisher.canRemoveTrack()) {
                         publisher.removeTrack(sender);
                     }
                 } catch (e) {
-                    this.log.warn('could not removeTrack', {...this.logContext, error: e});
+                    this.log.warn('could not removeTrack', { ...this.logContext, error: e });
                 }
             }
         }
@@ -152,7 +153,7 @@ export class PCTransportManager {
         this.subscriber.restartingIce = true;
         // only restart publisher if it's needed
         if (this.needsPublisher) {
-            await this.createAndSendPublisherOffer({iceRestart: true});
+            await this.createAndSendPublisherOffer({ iceRestart: true });
         }
     }
 

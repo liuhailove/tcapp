@@ -1,11 +1,11 @@
 import {RoomConnectOptions, RoomOptions} from "@/components/live/options";
 import {EventEmitter} from "events";
-import TypedEventEmitter from "typed-emitter";
+import TypedEmitter from "typed-emitter";
 import Room, {ConnectionState} from "@/components/live/room/Room";
 import RTCEngine from "@/components/live/room/RTCEngine";
 
 type LogMessage = {
-    level: 'info' | 'waring' | 'error';
+    level: 'info' | 'warning' | 'error';
     message: string;
 };
 
@@ -14,11 +14,11 @@ export enum CheckStatus {
     RUNNING,
     SKIPPED,
     SUCCESS,
-    FAILED
+    FAILED,
 }
 
 export type CheckInfo = {
-    name: string,
+    name: string;
     logs: Array<LogMessage>;
     status: CheckStatus;
     description: string;
@@ -30,7 +30,7 @@ export interface CheckerOptions {
     connectOptions?: RoomConnectOptions;
 }
 
-export abstract class Checker extends (EventEmitter as new () => TypedEventEmitter<CheckerCallbacks>) {
+export abstract class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
     protected url: string;
 
     protected token: string;
@@ -68,7 +68,6 @@ export abstract class Checker extends (EventEmitter as new () => TypedEventEmitt
             throw Error('check is running already');
         }
         this.setStatus(CheckStatus.RUNNING);
-        this.appendMessage(`${this.name} started.`);
 
         try {
             await this.perform();
@@ -128,7 +127,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEventEmitt
     }
 
     protected appendWarning(message: string) {
-        this.logs.push({level: 'waring', message});
+        this.logs.push({level: 'warning', message});
         this.emit('update', this.getInfo());
     }
 

@@ -36,6 +36,7 @@ const browsersList = [
             const browser: BrowserDetails = {
                 name: 'Firefox',
                 version: getMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i, ua),
+                os: ua.toLowerCase().includes('fxios') ? 'iOS' : undefined,
             };
             return browser;
         },
@@ -46,6 +47,7 @@ const browsersList = [
             const browser: BrowserDetails = {
                 name: 'Chrome',
                 version: getMatch(/(?:chrome|chromium|crios|crmo)\/(\d+(\.?_?\d+)+)/i, ua),
+                os: ua.toLowerCase().includes('crios') ? 'iOS' : undefined,
             };
 
             return browser;
@@ -58,6 +60,7 @@ const browsersList = [
             const browser: BrowserDetails = {
                 name: 'Safari',
                 version: getMatch(commonVersionIdentifier, ua),
+                os: ua.includes('mobile/') ? 'iOS' : 'macOS',
             };
 
             return browser;

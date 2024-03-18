@@ -7,7 +7,7 @@
 import {
     AudioCaptureOptions,
     CreateLocalTracksOptions,
-    ScreenShareCaptureOptions,
+    ScreenShareCaptureOptions, ScreenSharePresets,
     VideoCaptureOptions, VideoPresets
 } from "@/components/live/room/track/options";
 import LocalTrack from "@/components/live/room/track/LocalTrack";
@@ -23,6 +23,7 @@ import {Track} from "@/components/live/room/track/Track";
 import LocalVideoTrack from "@/components/live/room/track/LocalVideoTrack";
 import LocalAudioTrack from "@/components/live/room/track/LocalAudioTrack";
 import {DeviceUnsupportedError, TrackInvalidError} from "@/components/live/room/errors";
+import {isSafari17} from "@/components/live/room/utils";
 
 export async function createLocalTracks(
     options?: CreateLocalTracksOptions,
@@ -66,7 +67,7 @@ export async function createLocalTracks(
         if (trackConstraints) {
             trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
         } else {
-            trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
+            trackConstraints = {deviceId: mediaStreamTrack.getSettings().deviceId};
         }
 
         const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
@@ -94,12 +95,13 @@ export async function createLocalVideoTrack(
     return <LocalVideoTrack>tracks[0];
 }
 
-export async function createLocalAudioTrack(options?: AudioCaptureOptions,
+export async function createLocalAudioTrack(
+    options?: AudioCaptureOptions,
 ): Promise<LocalAudioTrack> {
     const tracks = await createLocalTracks({
         audio: options,
         video: false,
-    })
+    });
     return <LocalAudioTrack>tracks[0];
 }
 
@@ -114,8 +116,8 @@ export async function createLocalScreenTracks(
     if (options === undefined) {
         options = {};
     }
-    if (options.resolution === undefined) {
-        options.resolution = VideoPresets.h1080.resolution;
+    if (options.resolution === undefined && !isSafari17()) {
+        options.resolution = ScreenSharePresets.h1080fps30.resolution;
     }
 
     if (navigator.mediaDevices.getDisplayMedia === undefined) {
@@ -129,7 +131,6 @@ export async function createLocalScreenTracks(
     if (tracks.length === 0) {
         throw new TrackInvalidError('no video track found');
     }
-
     const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];

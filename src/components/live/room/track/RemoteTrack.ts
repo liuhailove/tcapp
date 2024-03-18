@@ -14,10 +14,12 @@ export default abstract class RemoteTrack<TrackKind extends Track.Kind = Track.K
         loggerOptions?: LoggerOptions,
     ) {
         super(mediaTrack, kind, loggerOptions);
+
         this.sid = sid;
         this.receiver = receiver;
     }
 
+    /** @internal */
     setMuted(muted: boolean) {
         if (this.isMuted !== muted) {
             this.isMuted = muted;
@@ -68,6 +70,7 @@ export default abstract class RemoteTrack<TrackKind extends Track.Kind = Track.K
         return await this.receiver.getStats();
     }
 
+    /* @internal */
     startMonitor() {
         if (!this.monitorInterval) {
             this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);

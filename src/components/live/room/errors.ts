@@ -12,7 +12,7 @@ export const enum ConnectionErrorReason {
     ServerUnreachable,
     InternalError,
     Cancelled,
-    LeaveRequest
+    LeaveRequest,
 }
 
 export class ConnectionError extends TcError {

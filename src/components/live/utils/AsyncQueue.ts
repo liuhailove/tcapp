@@ -2,28 +2,28 @@ import {Mutex} from "@/components/live/room/utils";
 
 type QueueTask<T> = () => PromiseLike<T>;
 
-enum QueueTskStatus {
+enum QueueTaskStatus {
     'WAITING',
     'RUNNING',
-    'COMPLETED'
+    'COMPLETED',
 }
 
 type QueueTaskInfo = {
     id: number;
     enqueuedAt: number;
     executedAt?: number;
-    status: QueueTskStatus;
+    status: QueueTaskStatus;
 };
 
 export class AsyncQueue {
-    private pendingTask: Map<number, QueueTaskInfo>;
+    private pendingTasks: Map<number, QueueTaskInfo>;
 
     private taskMutex: Mutex;
 
     private nextTaskIndex: number;
 
     constructor() {
-        this.pendingTask = new Map();
+        this.pendingTasks = new Map();
         this.taskMutex = new Mutex();
         this.nextTaskIndex = 0;
     }
@@ -32,17 +32,17 @@ export class AsyncQueue {
         const taskInfo: QueueTaskInfo = {
             id: this.nextTaskIndex++,
             enqueuedAt: Date.now(),
-            status: QueueTskStatus.WAITING,
+            status: QueueTaskStatus.WAITING,
         };
-        this.pendingTask.set(taskInfo.id, taskInfo);
+        this.pendingTasks.set(taskInfo.id, taskInfo);
         const unlock = await this.taskMutex.lock();
         try {
             taskInfo.executedAt = Date.now();
-            taskInfo.status = QueueTskStatus.RUNNING;
+            taskInfo.status = QueueTaskStatus.RUNNING;
             return await task();
         } finally {
-            taskInfo.status = QueueTskStatus.COMPLETED;
-            this.pendingTask.delete(taskInfo.id);
+            taskInfo.status = QueueTaskStatus.COMPLETED;
+            this.pendingTasks.delete(taskInfo.id);
             unlock();
         }
     }
@@ -53,6 +53,6 @@ export class AsyncQueue {
     }
 
     snapshot() {
-        return Array.from(this.pendingTask.values());
+        return Array.from(this.pendingTasks.values());
     }
 }

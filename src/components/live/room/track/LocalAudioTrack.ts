@@ -27,25 +27,28 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     constructor(
         mediaTrack: MediaStreamTrack,
         constraints?: MediaTrackConstraints,
-        userProviderTrack = true,
+        userProvidedTrack = true,
         audioContext?: AudioContext,
         loggerOptions?: LoggerOptions,
     ) {
-        super(mediaTrack, Track.Kind.Audio, constraints, userProviderTrack, loggerOptions);
+        super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, loggerOptions);
         this.audioContext = audioContext;
         this.checkForSilence();
     }
 
     async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
-        if (this._constraints.deviceId === deviceId) {
-            return;
+        if (
+            this._constraints.deviceId === deviceId &&
+            this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
+        ) {
+            return true;
         }
         this._constraints.deviceId = deviceId;
         if (!this.isMuted) {
             await this.restartTrack();
         }
         return (
-            this.isMuted || unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId
+            this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId
         );
     }
 
@@ -91,7 +94,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
                 this.log.debug('reacquiring mic track', this.logContext);
                 await this.restartTrack();
             }
-            await super.unmuted();
+            await super.unmute();
             return this;
         } finally {
             unlock();
@@ -138,6 +141,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
             stats = await this.getSenderStats();
         } catch (e) {
             this.log.error('could not get audio sender stats', {...this.logContext, error: e});
+            return;
         }
 
         if (stats && this.prevStats) {

@@ -146,7 +146,7 @@ export default class LocalVideoTrack extends LocalTrack {
                 log.debug('reacquiring camera track');
                 await this.restartTrack();
             }
-            await super.unmuted();
+            await super.unmute();
         } finally {
             unlock();
         }

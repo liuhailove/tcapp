@@ -47,7 +47,10 @@ export function supportsAV1(): boolean {
     if (!('getCapabilities' in RTCRtpSender)) {
         return false;
     }
-
+    if (isSafari()) {
+        // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
+        return false;
+    }
     const capabilities = RTCRtpSender.getCapabilities('video');
     let hasAV1 = false;
     if (capabilities) {
@@ -124,7 +127,7 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
         // version is required
         return false;
     }
-    const v = setCodecPreferencesVersions[browser.name]
+    const v = setCodecPreferencesVersions[browser.name];
     if (v) {
         return compareVersions(browser.version, v) >= 0;
     }
@@ -132,6 +135,9 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
 }
 
 export function isBrowserSupported() {
+    if (typeof RTCPeerConnection === 'undefined') {
+        return false;
+    }
     return supportsTransceiver() || supportsAddTrack();
 }
 
@@ -153,9 +159,7 @@ export function isSafari17(): boolean {
 }
 
 export function isMobile(): boolean {
-    if (!isWeb()) {
-        return false;
-    }
+    if (!isWeb()) return false;
     return /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent);
 }
 
@@ -241,13 +245,10 @@ function ioDispatchCallback(entries: IntersectionObserverEntry[]) {
 }
 
 let resizeObserver: ResizeObserver | null = null;
-
 export const getResizeObserver = () => {
-    if (!resizeObserver) {
-        resizeObserver = new ResizeObserver(roDispatchCallback);
-    }
+    if (!resizeObserver) resizeObserver = new ResizeObserver(roDispatchCallback);
     return resizeObserver;
-}
+};
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
@@ -258,7 +259,7 @@ export const getIntersectionObserver = () => {
         });
     }
     return intersectionObserver;
-}
+};
 
 export interface ObservableMediaElement extends HTMLMediaElement {
     handleResize: (entry: ResizeObserverEntry) => void;
@@ -266,7 +267,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
 }
 
 export function getClientInfo(): ClientInfo {
-    const info = ClientInfo.fromJson({
+    const info = new ClientInfo({
         sdk: ClientInfo_SDK.JS,
         protocol: protocolVersion,
         version,
@@ -284,7 +285,7 @@ export function getEmptyVideoStreamTrack() {
     if (!emptyVideoStreamTrack) {
         emptyVideoStreamTrack = createDummyVideoStreamTrack();
     }
-    return emptyVideoStreamTrack;
+    return emptyVideoStreamTrack.clone();
 }
 
 export function createDummyVideoStreamTrack(
@@ -309,7 +310,7 @@ export function createDummyVideoStreamTrack(
     // @ts-ignore
     const dummyStream = canvas.captureStream();
     const [dummyTrack] = dummyStream.getTracks();
-    if (!dummyStream) {
+    if (!dummyTrack) {
         throw Error('Could not get empty media stream video track');
     }
     dummyTrack.enabled = enabled;
@@ -324,8 +325,11 @@ export function getEmptyAudioStreamTrack() {
         // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
         const ctx = new AudioContext();
         const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, 0);
         const dst = ctx.createMediaStreamDestination();
-        oscillator.connect(dst);
+        oscillator.connect(gain);
+        gain.connect(dst);
         oscillator.start();
         [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
         if (!emptyAudioStreamTrack) {
@@ -333,7 +337,7 @@ export function getEmptyAudioStreamTrack() {
         }
         emptyAudioStreamTrack.enabled = false;
     }
-    return emptyAudioStreamTrack;
+    return emptyAudioStreamTrack.clone();
 }
 
 export class Future<T> {
@@ -409,7 +413,7 @@ export function createAudioAnalyser(
         throw new Error('Audio Context not supported on this browser');
     }
     const streamTrack = opts.cloneTrack ? track.mediaStreamTrack.clone() : track.mediaStreamTrack;
-    const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]))
+    const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
     const analyser = audioContext.createAnalyser();
     analyser.minDecibels = opts.minDecibels;
     analyser.maxDecibels = opts.maxDecibels;
@@ -432,8 +436,8 @@ export function createAudioAnalyser(
         return volume;
     };
 
-    const cleanup = () => {
-        audioContext.close();
+    const cleanup = async () => {
+        await audioContext.close();
         if (opts.cloneTrack) {
             streamTrack.stop();
         }
@@ -463,12 +467,10 @@ export class Mutex {
 
         const willLock = new Promise<void>(
             (resolve) =>
-                (
-                    unlockNext = () => {
-                        this._locks -= 1;
-                        resolve();
-                    }
-                )
+                (unlockNext = () => {
+                    this._locks -= 1;
+                    resolve();
+                }),
         );
 
         const willUnlock = this._locking.then(() => unlockNext);
@@ -477,7 +479,6 @@ export class Mutex {
 
         return willUnlock;
     }
-
 }
 
 export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {

@@ -50,9 +50,10 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
     private loggerContextCb?: LoggerOptions['loggerContextCb'];
 
-    constructor(kind: Track.Kind, id: string, name: string,loggerOptions?:LoggerOptions) {
+    constructor(kind: Track.Kind, id: string, name: string, loggerOptions?: LoggerOptions) {
         super();
         this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Publication);
+        this.loggerContextCb = this.loggerContextCb;
         this.setMaxListeners(100);
         this.kind = kind;
         this.trackSid = id;
@@ -76,11 +77,11 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
         }
     }
 
-    protected get logContext(){
+    protected get logContext() {
         return {
             ...this.loggerContextCb?.(),
             ...getLogContextFromTrack(this),
-        }
+        };
     }
 
     get isMuted(): boolean {
@@ -119,12 +120,13 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
     handleMuted = () => {
         this.emit(TrackEvent.Muted);
-    }
+    };
 
     handleUnmuted = () => {
         this.emit(TrackEvent.Unmuted);
-    }
+    };
 
+    /** @internal */
     updateInfo(info: TrackInfo) {
         this.trackSid = info.sid;
         this.trackName = info.name;
@@ -139,10 +141,9 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
         }
         this.encryption = info.encryption;
         this.trackInfo = info;
-        this.log.debug('update publication info', { ...this.logContext, info });
+        this.log.debug('update publication info', {...this.logContext, info});
     }
 }
-
 
 export namespace TrackPublication {
     export enum SubscriptionStatus {
@@ -156,6 +157,7 @@ export namespace TrackPublication {
         NotAllowed = 'not_allowed',
     }
 }
+
 export type PublicationEventCallbacks = {
     muted: () => void;
     unmuted: () => void;

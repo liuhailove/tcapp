@@ -42,13 +42,13 @@ import {LoggerOptions} from "@/components/live/room/types";
 import {getLogger} from "loglevel";
 import {protoInt64} from "@bufbuild/protobuf";
 
+// internal options
 interface ConnectOpts extends SignalOptions {
-    autoSubscribe: boolean;
-
+    /** internal */
     reconnect?: boolean;
-
+    /** internal */
     reconnectReason?: number;
-
+    /** internal */
     sid?: string;
 }
 
@@ -153,58 +153,9 @@ export class SignalClient {
 
     onLeave?: (leave: LeaveRequest) => void;
 
-    /**
-     * 连接属性
-     */
     connectOptions?: ConnectOpts;
 
-    /**
-     * websocket实例
-     */
     ws?: WebSocket;
-
-    /**
-     * SignalOptions
-     */
-    private options?: SignalOptions;
-
-    /**
-     * ping超时时间
-     * @private
-     */
-    private pingTimeout: ReturnType<typeof setTimeout> | undefined;
-
-
-    private pingTimeoutDuration: number | undefined;
-
-    /**
-     * ping间隔
-     * @private
-     */
-    private pingIntervalDuration: number | undefined;
-
-    private pingInterval: ReturnType<typeof setInterval> | undefined;
-
-    private closingLock: Mutex;
-
-    /**
-     * 连接状态
-     */
-    private state: SignalConnectionState = SignalConnectionState.DISCONNECTED;
-
-    /**
-     * 连接锁
-     * @private
-     */
-    private connectionLock: Mutex;
-
-    /**
-     * 日志
-     * @private
-     */
-    private log = log;
-
-    private loggerContextCb?: LoggerOptions['loggerContextCb'];
 
     get currentState() {
         return this.state;
@@ -223,6 +174,26 @@ export class SignalClient {
             this.state === SignalConnectionState.RECONNECTING
         );
     }
+
+    private options?: SignalOptions;
+
+    private pingTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    private pingTimeoutDuration: number | undefined;
+
+    private pingIntervalDuration: number | undefined;
+
+    private pingInterval: ReturnType<typeof setInterval> | undefined;
+
+    private closingLock: Mutex;
+
+    private state: SignalConnectionState = SignalConnectionState.DISCONNECTED;
+
+    private connectionLock: Mutex;
+
+    private log = log;
+
+    private loggerContextCb?: LoggerOptions['loggerContextCb'];
 
     constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
         this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
@@ -245,7 +216,8 @@ export class SignalClient {
         opts: SignalOptions,
         abortSignal?: AbortSignal,
     ): Promise<JoinResponse> {
-        // 在完全重新连接期间，即使当前已连接，我们也希望启动序列
+        // during a full reconnect, we'd want to start the sequence even if currently
+        // connected
         this.state = SignalConnectionState.CONNECTING;
         this.options = opts;
         const res = await this.connect(url, token, opts, abortSignal);
@@ -319,7 +291,7 @@ export class SignalClient {
                 abortSignal?.addEventListener('abort', abortHandler);
                 this.log.debug(`connecting to ${url + params}`, this.logContext);
                 if (this.ws) {
-                    await this.close();
+                    await this.close(false);
                 }
                 this.ws = new WebSocket(url + params);
                 this.ws.binaryType = 'arraybuffer';
@@ -362,7 +334,6 @@ export class SignalClient {
 
                 // onmessage
                 this.ws.onmessage = async (ev: MessageEvent) => {
-                    this.log.warn(`wsonmessage ${ev}`, this.logContext);
                     // 在收到 JoinResponse 之前不认为已连接
                     let resp: SignalResponse;
                     if (typeof ev.data === 'string') {
@@ -377,10 +348,7 @@ export class SignalClient {
                         );
                         return;
                     }
-
                     this.log.warn(`wsonmessage resp ${resp.toJsonString()}`, this.logContext);
-                    this.log.warn(`wsonmessage state ${this.state}`, this.logContext);
-
                     if (this.state !== SignalConnectionState.CONNECTED) {
                         let shouldProcessMessage = false;
                         this.log.warn(`wsonmessage case ${resp.message?.case}`, this.logContext);
@@ -409,13 +377,13 @@ export class SignalClient {
                             abortSignal?.removeEventListener('abort', abortHandler);
                             this.startPingInterval();
                             if (resp.message?.case === 'reconnect') {
-                                resolve(resp.message?.value);
+                                resolve(resp.message.value);
                             } else {
                                 this.log.debug(
                                     'declaring signal reconnected without reconnect response received',
                                     this.logContext,
                                 );
-                                resolve();
+                                resolve(undefined);
                                 shouldProcessMessage = true;
                             }
                         } else if (this.isEstablishingConnection && resp.message.case === 'leave') {
@@ -458,13 +426,13 @@ export class SignalClient {
                     });
                     this.handleOnClose(ev.reason);
                 };
-
             } finally {
                 unlock();
             }
         });
     }
 
+    /** @internal */
     resetCallbacks = () => {
         this.onAnswer = undefined;
         this.onLeave = undefined;
@@ -477,7 +445,7 @@ export class SignalClient {
         this.onTokenRefresh = undefined;
         this.onTrickle = undefined;
         this.onClose = undefined;
-    }
+    };
 
     async close(updateState: boolean = true) {
         const unlock = await this.closingLock.lock();
@@ -486,9 +454,9 @@ export class SignalClient {
                 this.state = SignalConnectionState.DISCONNECTING;
             }
             if (this.ws) {
-                this.ws.onclose = null;
                 this.ws.onmessage = null;
                 this.ws.onopen = null;
+                this.ws.onclose = null;
 
                 // 调用 `ws.close()` 仅开始关闭握手（CLOSING 状态），最好等到状态实际 CLOSED
                 const closePromise = new Promise((resolve) => {
@@ -530,7 +498,7 @@ export class SignalClient {
     sendAnswer(answer: RTCSessionDescriptionInit) {
         this.log.debug('sending answer', {...this.logContext, answerSdp: answer.sdp});
         return this.sendRequest({
-            case: "answer",
+            case: 'answer',
             value: toProtoSessionDescription(answer),
         });
     }
@@ -538,10 +506,10 @@ export class SignalClient {
     sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
         this.log.trace('sending ice candidate', {...this.logContext, candidate});
         return this.sendRequest({
-            case: "trickle",
-            value: TrickleRequest.fromJson({
+            case: 'trickle',
+            value: new TrickleRequest({
                 candidateInit: JSON.stringify(candidate),
-                target: target,
+                target,
             }),
         });
     }
@@ -549,64 +517,64 @@ export class SignalClient {
     sendMuteTrack(trackSid: string, muted: boolean) {
         return this.sendRequest({
             case: 'mute',
-            value: MuteTrackRequest.fromJson({
+            value: new MuteTrackRequest({
                 sid: trackSid,
                 muted,
             }),
-        })
+        });
     }
 
     sendAddTrack(req: AddTrackRequest) {
         return this.sendRequest({
             case: 'addTrack',
             value: req,
-        })
+        });
     }
 
     sendUpdateLocalMetadata(metadata: string, name: string) {
         return this.sendRequest({
             case: 'updateMetadata',
-            value: UpdateParticipantMetadata.fromJson({
+            value: new UpdateParticipantMetadata({
                 metadata,
                 name,
-            })
+            }),
         });
     }
 
     sendUpdateTrackSettings(settings: UpdateTrackSettings) {
         this.sendRequest({
-            case: "trackSetting",
+            case: 'trackSetting',
             value: settings,
-        })
+        });
     }
 
     sendUpdateSubscription(sub: UpdateSubscription) {
         return this.sendRequest({
-            case: "subscription",
+            case: 'subscription',
             value: sub,
         });
     }
 
     sendSyncState(sync: SyncState) {
         return this.sendRequest({
-            case: "syncState",
+            case: 'syncState',
             value: sync,
-        })
+        });
     }
 
     sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
         return this.sendRequest({
-            case: "updateLayers",
+            case: 'updateLayers',
             value: new UpdateVideoLayers({
-                trackSid: trackSid,
-                layers: layers,
+                trackSid,
+                layers,
             }),
         });
     }
 
-    sendUpdateSubscriptionPermission(allParticipants: boolean, trackPermissions: TrackPermission[]) {
+    sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
         return this.sendRequest({
-            case: "subscriptionPermission",
+            case: 'subscriptionPermission',
             value: new SubscriptionPermission({
                 allParticipants,
                 trackPermissions,
@@ -616,20 +584,20 @@ export class SignalClient {
 
     sendSimulateScenario(scenario: SimulateScenario) {
         return this.sendRequest({
-            case: "simulate",
+            case: 'simulate',
             value: scenario,
-        })
+        });
     }
 
     sendPing() {
         /** 发送 ping 和 pingReq 以兼容新旧服务器 */
         return Promise.all([
             this.sendRequest({
-                case: "ping",
+                case: 'ping',
                 value: protoInt64.parse(Date.now()),
             }),
             this.sendRequest({
-                case: "pingReq",
+                case: 'pingReq',
                 value: new Ping({
                     timestamp: protoInt64.parse(Date.now()),
                     rtt: protoInt64.parse(this.rtt),
@@ -640,7 +608,7 @@ export class SignalClient {
 
     sendLeave() {
         return this.sendRequest({
-            case: "leave",
+            case: 'leave',
             value: new LeaveRequest({
                 canReconnect: false,
                 reason: DisconnectReason.CLIENT_INITIATED,
@@ -672,8 +640,8 @@ export class SignalClient {
             );
             return;
         }
-
         const req = new SignalRequest({message});
+
         try {
             if (this.useJSON) {
                 this.ws.send(req.toJsonString());
@@ -684,7 +652,6 @@ export class SignalClient {
             this.log.error('error sending signal message', {...this.logContext, error: e});
         }
     }
-
 
     private handleSignalResponse(res: SignalResponse) {
         const msg = res.message;
@@ -766,7 +733,7 @@ export class SignalClient {
             // this.log.info('pong message', {...this.logContext, msgCase: msg.case});
             // this.resetPingTimeout();
         } else if (msg.case === 'pongResp') {
-            this.log.warn('pongResp message', {...this.logContext, msgCase: msg.case});
+            this.log.debug('pongResp message', {...this.logContext, msgCase: msg.case});
             this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
             this.resetPingTimeout();
             pingHandled = true;
@@ -775,7 +742,7 @@ export class SignalClient {
         }
 
         if (!pingHandled) {
-            this.log.warn('pingHandled message', {...this.logContext, msgCase: msg.case});
+            this.log.debug('pingHandled message', {...this.logContext, msgCase: msg.case});
             this.resetPingTimeout();
         }
     }
@@ -845,9 +812,9 @@ export class SignalClient {
             return;
         }
         this.log.debug('start ping interval', this.logContext);
-        this.pingInterval = CriticalTimers.setInternal(() => {
+        this.pingInterval = CriticalTimers.setInterval(() => {
             this.sendPing();
-        }, this.pingIntervalDuration * 1000)
+        }, this.pingIntervalDuration * 1000);
     }
 
     private clearPingInterval() {
@@ -919,16 +886,20 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
     if (info.browserVersion) {
         params.set('browser_version', info.browserVersion);
     }
+
     if (opts.adaptiveStream) {
         params.set('adaptive_stream', '1');
     }
+
     if (opts.reconnectReason) {
         params.set('reconnect_reason', opts.reconnectReason.toString());
     }
+
     // @ts-ignore
     if (navigator.connection?.type) {
         // @ts-ignore
-        params.set('network', navigator.connect.type);
+        params.set('network', navigator.connection.type);
     }
+
     return `?${params.toString()}`;
 }

@@ -13,14 +13,14 @@ import {ReconnectCheck} from "@/components/live/connectionHelper/checks/reconnec
 import {PublishAudioCheck} from "@/components/live/connectionHelper/checks/publishAudio";
 import {PublishVideoCheck} from "@/components/live/connectionHelper/checks/publishVideo";
 
-export type{CheckInfo, CheckStatus};
+export type {CheckInfo, CheckStatus};
 
 export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<ConnectionCheckCallbacks>) {
     token: string;
 
     url: string;
 
-    private checkResults: Map<number, CheckInfo> = new Map<number, CheckInfo>();
+    private checkResults: Map<number, CheckInfo> = new Map();
 
     constructor(url: string, token: string) {
         super();

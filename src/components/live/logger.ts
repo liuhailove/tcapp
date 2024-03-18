@@ -30,8 +30,10 @@ export type StructuredLogger = log.Logger & {
     info: (msg: string, context?: object) => void;
     warn: (msg: string, context?: object) => void;
     error: (msg: string, context?: object) => void;
+    setDefaultLevel: (level: log.LogLevelDesc) => void;
+    setLevel: (level: log.LogLevelDesc) => void;
     getLevel: () => number;
-}
+};
 
 const tcLogger = log.getLogger("tc")
 const tcLoggers = Object.values(LoggerNames).map((name) => log.getLogger(name));
@@ -52,6 +54,9 @@ export function getLogger(name: string) {
 export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: LoggerNames) {
     if (loggerName) {
         log.getLogger(loggerName).setLevel(level);
+    }
+    for (const logger of tcLoggers) {
+        logger.setLevel(level);
     }
 }
 

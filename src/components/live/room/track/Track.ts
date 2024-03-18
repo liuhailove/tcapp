@@ -25,51 +25,53 @@ export enum VideoQuality {
     HIGH = ProtoQuality.HIGH,
 }
 
-export abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
-    // 音轨类型
-    kind: TrackKind;
+export abstract class Track<TrackKind extends Track.Kind = Track.Kind,
+    > extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+    readonly kind: TrackKind;
 
-    // 附加的媒体元素
     attachedElements: HTMLMediaElement[] = [];
 
-    // 是否静音，默认false
     isMuted: boolean = false;
 
-    // track来源
     source: Track.Source;
 
-    // sid 在音轨发布到服务器后设置，或者如果它是远程音轨
+    /**
+     * sid is set after track is published to server, or if it's a remote track
+     */
     sid?: Track.SID;
 
-    // 关联媒体流
+    /**
+     * @internal
+     */
     mediaStream?: MediaStream;
 
-    // 指示流的当前状态，如果曲目处于暂停状态，则会指示“已暂停”
-    // 已被拥塞控制器暂停
+    /**
+     * indicates current state of stream, it'll indicate `paused` if the track
+     * has been paused by congestion controller
+     */
     streamState: Track.StreamState = Track.StreamState.Active;
 
     protected _mediaStreamTrack: MediaStreamTrack;
 
-    // 媒体流ID
     protected _mediaStreamID: string;
 
-    // 是否处于后台
     protected isInBackground: boolean = false;
 
-    // 处于后台的超时时间
     private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    protected loggerContextCb: LoggerOptions['loggerContextCb'];
+    private loggerContextCb: LoggerOptions['loggerContextCb'];
 
-    // 当前比特率
     protected _currentBitrate: number = 0;
 
-    // 监听间隔
     protected monitorInterval?: ReturnType<typeof setInterval>;
 
     protected log: StructuredLogger = log;
 
-    protected constructor(mediaTrack: MediaStreamTrack, kind: TrackKind, loggerOptions: LoggerOptions = {}) {
+    protected constructor(
+        mediaTrack: MediaStreamTrack,
+        kind: TrackKind,
+        loggerOptions: LoggerOptions = {},
+    ) {
         super();
         this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
         this.loggerContextCb = loggerOptions.loggerContextCb;
@@ -88,13 +90,13 @@ export abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends (
         };
     }
 
-    // 当前每秒接收比特数
+    /** current receive bits per second */
     get currentBitrate(): number {
-        return this._currentBitrate
+        return this._currentBitrate;
     }
 
     get mediaStreamTrack() {
-        return this._mediaStreamTrack
+        return this._mediaStreamTrack;
     }
 
     // 用于保留 mediaStream 的第一个 id，因为它的 id 可能会改变
@@ -108,11 +110,11 @@ export abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends (
     // 将轨道附加到现有的 HTMLAudioElement 或 HTMLVideoElement
     attach(element: HTMLMediaElement): HTMLMediaElement;
     attach(element?: HTMLMediaElement): HTMLMediaElement {
-        let elementType = 'audio'
+        let elementType = 'audio';
         if (this.kind === Track.Kind.Video) {
-            elementType = 'video'
+            elementType = 'video';
         }
-        if (this.attachedElements.length == 0 && Track.Kind.Video) {
+        if (this.attachedElements.length === 0 && Track.Kind.Video) {
             this.addAppVisibilityListener();
         }
         if (!element) {
@@ -123,8 +125,8 @@ export abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends (
                     }
                 });
                 if (element) {
-                    // 从pool中移除
-                    recycledElements.splice(recycledElements.indexOf(element), 1)
+                    // remove it from pool
+                    recycledElements.splice(recycledElements.indexOf(element), 1);
                 }
             }
             if (!element) {
@@ -329,8 +331,13 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         mediaStream.addTrack(track);
     }
 
-    element.autoplay = true;
-    // 如果媒体流上没有音轨，我们将元素设置为静音以确保自动播放正常工作
+    if (!isSafari() || !(element instanceof HTMLVideoElement)) {
+        // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
+        // when a video starts that has the `autoplay` attribute is set.
+        // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
+        element.autoplay = true;
+    }
+    // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
     element.muted = mediaStream.getAudioTracks().length === 0;
     if (element instanceof HTMLVideoElement) {
         element.playsInline = true;
@@ -357,6 +364,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     }
 }
 
+/** @internal */
 export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) {
     if (element.srcObject instanceof MediaStream) {
         const mediaStream = element.srcObject;
@@ -369,18 +377,15 @@ export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) 
     }
 }
 
-// 音/视频序列
 export namespace Track {
-    // 类型
     export enum Kind {
         Audio = 'audio',
         Video = 'video',
-        Unknown = 'unknown'
+        Unknown = 'unknown',
     }
 
     export type SID = string;
 
-    // track来源
     export enum Source {
         Camera = 'camera',
         Microphone = 'microphone',
@@ -393,7 +398,7 @@ export namespace Track {
     export enum StreamState {
         Active = 'active',
         Paused = 'paused',
-        Unknown = 'unknown'
+        Unknown = 'unknown',
     }
 
     // 尺寸
@@ -402,7 +407,7 @@ export namespace Track {
         height: number;
     }
 
-    // 转为PB类型
+    /** @internal */
     export function kindToProto(k: Kind): TrackType {
         switch (k) {
             case Kind.Audio:
@@ -410,10 +415,12 @@ export namespace Track {
             case Kind.Video:
                 return TrackType.VIDEO;
             default:
-                return TrackType.UNRECOGNIZED;
+                // FIXME this was UNRECOGNIZED before
+                return TrackType.DATA;
         }
     }
 
+    /** @internal */
     export function kindFromProto(t: TrackType): Kind | undefined {
         switch (t) {
             case TrackType.AUDIO:
@@ -425,6 +432,7 @@ export namespace Track {
         }
     }
 
+    /** @internal */
     export function sourceToProto(s: Source): TrackSource {
         switch (s) {
             case Source.Camera:
@@ -436,10 +444,11 @@ export namespace Track {
             case Source.ScreenShareAudio:
                 return TrackSource.SCREEN_SHARE_AUDIO;
             default:
-                return TrackSource.TS_UNRECOGNIZED
+                return TrackSource.UNKNOWN;
         }
     }
 
+    /** @internal */
     export function sourceFromProto(s: TrackSource): Source {
         switch (s) {
             case TrackSource.CAMERA:
@@ -451,10 +460,11 @@ export namespace Track {
             case TrackSource.SCREEN_SHARE_AUDIO:
                 return Source.ScreenShareAudio;
             default:
-                return Source.Unknown
+                return Source.Unknown;
         }
     }
 
+    /** @internal */
     export function streamStateFromProto(s: ProtoStreamState): StreamState {
         switch (s) {
             case ProtoStreamState.ACTIVE:
@@ -486,7 +496,7 @@ export type TrackEventCallbacks = {
     // 音频播放开始
     audioPlaybackStarted: () => void;
     // 音频播放失败
-    audioPlaybackFailed: (error: Error) => void;
+    audioPlaybackFailed: (error?: Error) => void;
     // 检测到音频静音
     audioSilenceDetected: () => void;
     // 可见性已更改
@@ -504,4 +514,4 @@ export type TrackEventCallbacks = {
     // 上游恢复
     upstreamResumed: (track: any) => void;
     trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
-}
+};

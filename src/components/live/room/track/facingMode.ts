@@ -10,7 +10,6 @@ type FacingModeFromLocalTrackOptions = {
      */
     defaultFacingMode?: FacingMode;
 };
-
 type FacingModeFromLocalTrackReturnValue = {
     /**
      * The (probable) facingMode of the track.
@@ -36,7 +35,7 @@ type FacingModeFromLocalTrackReturnValue = {
  */
 export function facingModeFromLocalTrack(
     localTrack: LocalTrack | MediaStreamTrack,
-    options: FacingModeFromLocalTrackOptions = {}
+    options: FacingModeFromLocalTrackOptions = {},
 ): FacingModeFromLocalTrackReturnValue {
     const track = localTrack instanceof LocalTrack ? localTrack.mediaStreamTrack : localTrack;
     const trackSettings = track.getSettings();
@@ -48,7 +47,7 @@ export function facingModeFromLocalTrack(
     // 1. Try to get facingMode from track settings.
     if ('facingMode' in trackSettings) {
         const rawFacingMode = trackSettings.facingMode;
-        log.debug('rawFacingMode', {rawFacingMode});
+        log.trace('rawFacingMode', {rawFacingMode});
         if (rawFacingMode && typeof rawFacingMode === 'string' && isFacingModeValue(rawFacingMode)) {
             result = {facingMode: rawFacingMode, confidence: 'high'};
         }
@@ -56,7 +55,7 @@ export function facingModeFromLocalTrack(
 
     // 2. If we don't have a high confidence we try to get the facing mode from the device label.
     if (['low', 'medium'].includes(result.confidence)) {
-        log.debug(`Try to get facing mode from device label: (${track.label})`);
+        log.trace(`Try to get facing mode from device label: (${track.label})`);
         const labelAnalysisResult = facingModeFromDeviceLabel(track.label);
         if (labelAnalysisResult !== undefined) {
             result = labelAnalysisResult;
@@ -69,7 +68,6 @@ export function facingModeFromLocalTrack(
 const knownDeviceLabels = new Map<string, FacingModeFromLocalTrackReturnValue>([
     ['obs virtual camera', {facingMode: 'environment', confidence: 'medium'}],
 ]);
-
 const knownDeviceLabelSections = new Map<string, FacingModeFromLocalTrackReturnValue>([
     ['iphone', {facingMode: 'environment', confidence: 'medium'}],
     ['ipad', {facingMode: 'environment', confidence: 'medium'}],

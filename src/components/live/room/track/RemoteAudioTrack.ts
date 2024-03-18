@@ -7,7 +7,7 @@ import log from "@/components/live/logger";
 import {TrackEvent} from '@/components/live/room/LiveEvents';
 import {LoggerOptions} from "@/components/live/room/types";
 
-export default class RemoteAudioTrack extends RemoteTrack {
+export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     private prevStats?: AudioReceiverStats;
 
     private elementVolume: number | undefined;
@@ -196,7 +196,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
         }
 
         // try to resume the context if it isn't running already
-        if (context.state !== "running") {
+        if (context.state !== 'running') {
             context
                 .resume()
                 .then(() => {

@@ -101,7 +101,7 @@ export interface AudioReceiverStats extends ReceiverStats {
 }
 
 export interface VideoReceiverStats extends ReceiverStats {
-    type: 'video',
+    type: 'video';
 
     framesDecoded: number;
 
